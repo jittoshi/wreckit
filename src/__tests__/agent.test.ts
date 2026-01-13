@@ -148,7 +148,7 @@ describe("runAgent", () => {
   it("timeout handling", async () => {
     const config: AgentConfig = {
       command: "sh",
-      args: ["-c", "sleep 10"],
+      args: ["-c", "sleep 3"],
       completion_signal: "<promise>COMPLETE</promise>",
       timeout_seconds: 1,
       max_iterations: 1,
@@ -169,7 +169,7 @@ describe("runAgent", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining("timed out")
     );
-  }, 10000);
+  }, 5000);
 
   it("dryRun mode logs but doesn't execute", async () => {
     const config: AgentConfig = {
