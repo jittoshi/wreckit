@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "features/001-hello-world",
+  "title": "Hello World Feature",
+  "section": "features",
+  "state": "raw",
+  "overview": "Add a simple hello world endpoint that returns a greeting message.",
+  "branch": null,
+  "pr_url": null,
+  "pr_number": null,
+  "last_error": null,
+  "created_at": "2025-01-12T00:00:00Z",
+  "updated_at": "2025-01-12T00:00:00Z"
+}

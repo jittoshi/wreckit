@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "base_branch": "main",
+  "branch_prefix": "wreckit/",
+  "agent": {
+    "command": "amp",
+    "args": ["--dangerously-allow-all"],
+    "completion_signal": "<promise>COMPLETE</promise>"
+  },
+  "max_iterations": 100,
+  "timeout_seconds": 3600
+}

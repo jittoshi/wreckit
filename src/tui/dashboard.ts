@@ -1,0 +1,136 @@
+import type { Item } from "../schemas";
+
+export interface TuiState {
+  currentItem: string | null;
+  currentPhase: string | null;
+  currentIteration: number;
+  maxIterations: number;
+  currentStory: { id: string; title: string } | null;
+  items: Array<{
+    id: string;
+    state: string;
+    title: string;
+    currentStoryId?: string;
+  }>;
+  completedCount: number;
+  totalCount: number;
+  startTime: Date;
+  logs: string[];
+}
+
+export function createTuiState(items: Item[]): TuiState {
+  return {
+    currentItem: null,
+    currentPhase: null,
+    currentIteration: 0,
+    maxIterations: 100,
+    currentStory: null,
+    items: items.map((item) => ({
+      id: item.id,
+      state: item.state,
+      title: item.title,
+      currentStoryId: undefined,
+    })),
+    completedCount: items.filter((item) => item.state === "done").length,
+    totalCount: items.length,
+    startTime: new Date(),
+    logs: [],
+  };
+}
+
+export function updateTuiState(
+  state: TuiState,
+  update: Partial<TuiState>
+): TuiState {
+  return { ...state, ...update };
+}
+
+export function formatRuntime(startTime: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - startTime.getTime();
+  const totalSeconds = Math.floor(diffMs / 1000);
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const hh = hours.toString().padStart(2, "0");
+  const mm = minutes.toString().padStart(2, "0");
+  const ss = seconds.toString().padStart(2, "0");
+
+  return `${hh}:${mm}:${ss}`;
+}
+
+export function getStateIcon(state: string): string {
+  switch (state) {
+    case "done":
+      return "✓";
+    case "implementing":
+    case "in_pr":
+      return "→";
+    case "raw":
+    case "researched":
+    case "planned":
+    default:
+      return "○";
+  }
+}
+
+export function padToWidth(str: string, width: number): string {
+  if (str.length > width) {
+    return str.slice(0, width - 1) + "…";
+  }
+  return str.padEnd(width);
+}
+
+function renderHorizontalLine(width: number, left: string, right: string): string {
+  return left + "─".repeat(width - 2) + right;
+}
+
+export function renderDashboard(state: TuiState, width = 65): string {
+  const innerWidth = width - 4;
+  const lines: string[] = [];
+
+  lines.push("┌─ Wreckit " + "─".repeat(width - 12) + "┐");
+
+  const currentItemText = state.currentItem
+    ? `Running: ${state.currentItem}`
+    : "Waiting...";
+  lines.push("│ " + padToWidth(currentItemText, innerWidth) + " │");
+
+  const phaseText = state.currentPhase
+    ? `Phase: ${state.currentPhase} (iteration ${state.currentIteration}/${state.maxIterations})`
+    : "Phase: idle";
+  lines.push("│ " + padToWidth(phaseText, innerWidth) + " │");
+
+  const storyText = state.currentStory
+    ? `Story: ${state.currentStory.id} - ${state.currentStory.title}`
+    : "Story: none";
+  lines.push("│ " + padToWidth(storyText, innerWidth) + " │");
+
+  lines.push("├" + "─".repeat(width - 2) + "┤");
+
+  if (state.items.length === 0) {
+    lines.push("│ " + padToWidth("No items", innerWidth) + " │");
+  } else {
+    for (const item of state.items) {
+      const icon = getStateIcon(item.state);
+      const storyInfo = item.currentStoryId ? ` [${item.currentStoryId}]` : "";
+      const itemLine = `${icon} ${padToWidth(item.id, 30)} ${padToWidth(item.state, 14)}${storyInfo}`;
+      lines.push("│ " + padToWidth(itemLine, innerWidth) + " │");
+    }
+  }
+
+  lines.push("├" + "─".repeat(width - 2) + "┤");
+
+  const runtime = formatRuntime(state.startTime);
+  const progressText = `Progress: ${state.completedCount}/${state.totalCount} complete | Runtime: ${runtime}`;
+  lines.push("│ " + padToWidth(progressText, innerWidth) + " │");
+
+  const keysText = "[q] quit  [l] logs";
+  lines.push("│ " + padToWidth(keysText, innerWidth) + " │");
+
+  lines.push("└" + "─".repeat(width - 2) + "┘");
+
+  return lines.join("\n");
+}

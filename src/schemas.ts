@@ -1,0 +1,77 @@
+import { z } from "zod";
+
+export const WorkflowStateSchema = z.enum([
+  "raw",
+  "researched",
+  "planned",
+  "implementing",
+  "in_pr",
+  "done",
+]);
+
+export const StoryStatusSchema = z.enum(["pending", "done"]);
+
+export const ConfigSchema = z.object({
+  schema_version: z.number().default(1),
+  base_branch: z.string().default("main"),
+  branch_prefix: z.string().default("wreckit/"),
+  agent: z.object({
+    command: z.string(),
+    args: z.array(z.string()),
+    completion_signal: z.string(),
+  }),
+  max_iterations: z.number().default(100),
+  timeout_seconds: z.number().default(3600),
+});
+
+export const ItemSchema = z.object({
+  schema_version: z.number(),
+  id: z.string(),
+  title: z.string(),
+  section: z.string(),
+  state: WorkflowStateSchema,
+  overview: z.string(),
+  branch: z.string().nullable(),
+  pr_url: z.string().nullable(),
+  pr_number: z.number().nullable(),
+  last_error: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const StorySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  acceptance_criteria: z.array(z.string()),
+  priority: z.number(),
+  status: StoryStatusSchema,
+  notes: z.string(),
+});
+
+export const PrdSchema = z.object({
+  schema_version: z.number(),
+  id: z.string(),
+  branch_name: z.string(),
+  user_stories: z.array(StorySchema),
+});
+
+export const IndexItemSchema = z.object({
+  id: z.string(),
+  state: WorkflowStateSchema,
+  title: z.string(),
+});
+
+export const IndexSchema = z.object({
+  schema_version: z.number(),
+  items: z.array(IndexItemSchema),
+  generated_at: z.string(),
+});
+
+export type WorkflowState = z.infer<typeof WorkflowStateSchema>;
+export type StoryStatus = z.infer<typeof StoryStatusSchema>;
+export type Config = z.infer<typeof ConfigSchema>;
+export type Item = z.infer<typeof ItemSchema>;
+export type Story = z.infer<typeof StorySchema>;
+export type Prd = z.infer<typeof PrdSchema>;
+export type IndexItem = z.infer<typeof IndexItemSchema>;
+export type Index = z.infer<typeof IndexSchema>;
