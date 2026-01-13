@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/wreckit-logo.png" alt="Wreck it Ralph Wiggum" width="400">
+  <img src="img/wreckit.webp" alt="Wreck it Ralph Wiggum holding a sign 'MY CODE IS IN DANGER'" width="500">
 </p>
 
 # Wreck it Ralph Wiggum 🔨
