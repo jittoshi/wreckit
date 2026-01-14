@@ -1,6 +1,6 @@
 import type { Logger } from "../logging";
 import type { WorkflowState } from "../schemas";
-import { findRepoRoot, getItemDir } from "../fs/paths";
+import { findRepoRoot, findRootFromOptions, getItemDir } from "../fs/paths";
 import { readItem } from "../fs/json";
 import { loadConfig } from "../config";
 import { FileNotFoundError, WreckitError } from "../errors";
@@ -23,6 +23,18 @@ export interface PhaseOptions {
   cwd?: string;
 }
 
+/**
+ * Configuration mapping phases to their required and target states.
+ *
+ * Each phase specifies:
+ * - requiredState: The state(s) an item must be in to run this phase
+ * - targetState: The state the item will be in after successful phase completion
+ * - skipIfInTarget: Whether to skip execution if already in target state
+ * - runFn: The workflow function that implements the phase
+ *
+ * NOTE: Phase names and state mappings have a bidirectional relationship with getNextPhase() in
+ * src/workflow/itemWorkflow.ts:607-626. Changes here may require updates there.
+ */
 const PHASE_CONFIG: Record<
   Phase,
   {
@@ -81,11 +93,26 @@ function isInTargetState(
   return currentState === targetState;
 }
 
+/**
+ * Validates whether a phase transition would be invalid.
+ *
+ * A transition is invalid if:
+ * 1. The current state is "done" (terminal) and phase is not "complete"
+ * 2. The current state index is greater than the target state index (backward transition)
+ *
+ * Uses a local stateOrder array - must stay synchronized with WORKFLOW_STATES in src/domain/states.ts:3-10
+ *
+ * @param phase - The phase being executed
+ * @param currentState - The item's current workflow state
+ * @returns true if the transition should be blocked
+ */
 function isInvalidTransition(
   phase: Phase,
   currentState: WorkflowState
 ): boolean {
   const config = PHASE_CONFIG[phase];
+  // IMPORTANT: This array MUST match WORKFLOW_STATES in src/domain/states.ts:3-10
+  // This is a local duplicate for encapsulation - update both locations if state ordering changes
   const stateOrder: WorkflowState[] = [
     "raw",
     "researched",
@@ -117,7 +144,7 @@ export async function runPhaseCommand(
 ): Promise<void> {
   const { force = false, dryRun = false, cwd } = options;
 
-  const root = findRepoRoot(cwd ?? process.cwd());
+  const root = findRootFromOptions(options);
   const config = await loadConfig(root);
 
   const itemDir = getItemDir(root, itemId);
