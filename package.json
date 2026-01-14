@@ -1,6 +1,6 @@
 {
   "name": "wreckit",
-  "version": "0.9.1",
+  "version": "1.0.0",
   "description": "A CLI tool for turning ideas into automated PRs through an autonomous agent loop",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,7 +10,9 @@
   "files": [
     "dist/",
     "README.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "MIGRATION.md",
+    "CHANGELOG.md"
   ],
   "repository": {
     "type": "git",
@@ -46,6 +48,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.77",
     "@clack/prompts": "^0.11.0",
     "@types/react": "^19.2.8",
     "commander": "^14.0.2",

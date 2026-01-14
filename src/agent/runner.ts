@@ -3,11 +3,15 @@ import type { ConfigResolved } from "../config";
 import type { Logger } from "../logging";
 
 export interface AgentConfig {
+  mode: "process" | "sdk";
   command: string;
   args: string[];
   completion_signal: string;
   timeout_seconds: number;
   max_iterations: number;
+  sdk_model?: string;
+  sdk_max_tokens?: number;
+  sdk_tools?: string[];
 }
 
 export interface AgentResult {
@@ -31,11 +35,15 @@ export interface RunAgentOptions {
 
 export function getAgentConfig(config: ConfigResolved): AgentConfig {
   return {
+    mode: config.agent.mode,
     command: config.agent.command,
     args: config.agent.args,
     completion_signal: config.agent.completion_signal,
     timeout_seconds: config.timeout_seconds,
     max_iterations: config.max_iterations,
+    sdk_model: config.agent.sdk_model,
+    sdk_max_tokens: config.agent.sdk_max_tokens,
+    sdk_tools: config.agent.sdk_tools,
   };
 }
 
@@ -75,7 +83,8 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentResult> {
   const { config, cwd, prompt, logger, dryRun = false, mockAgent = false } = options;
 
   if (dryRun) {
-    logger.info(`[dry-run] Would run: ${config.command} ${config.args.join(" ")}`);
+    const modeLabel = config.mode === "sdk" ? "SDK agent" : `process: ${config.command} ${config.args.join(" ")}`;
+    logger.info(`[dry-run] Would run ${modeLabel}`);
     logger.info(`[dry-run] Working directory: ${cwd}`);
     logger.info(`[dry-run] Prompt length: ${prompt.length} characters`);
     return {
@@ -91,6 +100,34 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentResult> {
     logger.info(`[mock-agent] Simulating agent run...`);
     return simulateMockAgent(options, config);
   }
+
+  // Try SDK mode first
+  if (config.mode === "sdk") {
+    try {
+      const { runSdkAgent } = await import("./sdk-runner.js");
+      const result = await runSdkAgent(options, config);
+
+      // If SDK fails due to auth, fall back to process mode
+      if (!result.success && result.output.includes("Authentication Error")) {
+        logger.warn("SDK authentication failed, falling back to process mode");
+        return runProcessAgent(options, { ...config, mode: "process" });
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`SDK mode failed: ${error}`);
+      // Fall back to process mode on any error
+      logger.warn("Falling back to process mode");
+      return runProcessAgent(options, { ...config, mode: "process" });
+    }
+  }
+
+  // Default to process-based execution (existing code)
+  return runProcessAgent(options, config);
+}
+
+async function runProcessAgent(options: RunAgentOptions): Promise<AgentResult> {
+  const { config, cwd, prompt, logger } = options;
 
   return new Promise((resolve) => {
     let output = "";

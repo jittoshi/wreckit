@@ -142,10 +142,30 @@ Lives in `.wreckit/config.json`:
 
 ### Agent Options
 
-**Amp (default):**
+Wreckit supports two agent execution modes:
+
+#### SDK Mode (Recommended)
+Uses the Claude Agent SDK directly for better performance and error handling:
+
 ```json
 {
   "agent": {
+    "mode": "sdk",
+    "sdk_model": "claude-sonnet-4-20250514",
+    "sdk_max_tokens": 8192,
+    "sdk_tools": ["Read", "Edit", "Bash", "Glob", "Grep"]
+  }
+}
+```
+
+#### Process Mode (Default)
+Spawns an external Claude Code process (backward compatible):
+
+**Amp:**
+```json
+{
+  "agent": {
+    "mode": "process",
     "command": "amp",
     "args": ["--dangerously-allow-all"],
     "completion_signal": "<promise>COMPLETE</promise>"
@@ -157,12 +177,15 @@ Lives in `.wreckit/config.json`:
 ```json
 {
   "agent": {
+    "mode": "process",
     "command": "claude",
     "args": ["--dangerously-skip-permissions", "--print"],
     "completion_signal": "<promise>COMPLETE</promise>"
   }
 }
 ```
+
+See [MIGRATION.md](./MIGRATION.md) for detailed migration guide.
 
 ---
 
@@ -281,7 +304,9 @@ wreckit next  # grabs the next incomplete item, runs it
 
 - Node.js 18+
 - `gh` CLI (for GitHub PRs)
-- An AI agent CLI: [Amp](https://ampcode.com) or [Claude](https://claude.ai)
+- An AI agent:
+  - **SDK Mode** (recommended): Set `ANTHROPIC_API_KEY` environment variable
+  - **Process Mode**: [Amp](https://ampcode.com) or [Claude](https://claude.ai) CLI
 
 ---
 
