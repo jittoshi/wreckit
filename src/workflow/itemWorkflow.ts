@@ -18,6 +18,7 @@ import {
   getPrdPath,
   getProgressLogPath,
 } from "../fs/paths";
+import { pathExists } from "../fs/util";
 import { readItem, writeItem, readPrd, writePrd } from "../fs/json";
 import {
   loadPromptTemplate,
@@ -50,15 +51,6 @@ export interface PhaseResult {
   error?: string;
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function readFileIfExists(filePath: string): Promise<string | undefined> {
   try {
     return await fs.readFile(filePath, "utf-8");
@@ -83,8 +75,8 @@ export async function buildValidationContext(
   const researchPath = getResearchPath(root, item.id);
   const planPath = getPlanPath(root, item.id);
 
-  const hasResearchMd = await fileExists(researchPath);
-  const hasPlanMd = await fileExists(planPath);
+  const hasResearchMd = await pathExists(researchPath);
+  const hasPlanMd = await pathExists(planPath);
   const prd = await loadPrdSafe(itemDir);
   const hasPr = item.pr_url !== null;
   const prMerged = item.state === "done";
@@ -158,7 +150,7 @@ export async function runPhaseResearch(
   let item = await loadItem(root, itemId);
   const researchPath = getResearchPath(root, item.id);
 
-  if (!force && (await fileExists(researchPath))) {
+  if (!force && (await pathExists(researchPath))) {
     logger.info(`Research already exists for ${itemId}, skipping`);
     if (item.state === "raw") {
       item = { ...item, state: "researched" };
@@ -219,7 +211,7 @@ export async function runPhaseResearch(
     return { success: false, item, error };
   }
 
-  if (!(await fileExists(researchPath))) {
+  if (!(await pathExists(researchPath))) {
     const error = "Agent did not create research.md";
     item = { ...item, last_error: error };
     await saveItem(root, item);
@@ -259,7 +251,7 @@ export async function runPhasePlan(
   const planPath = getPlanPath(root, item.id);
   const prdPath = getPrdPath(root, item.id);
 
-  if (!force && (await fileExists(planPath)) && (await fileExists(prdPath))) {
+  if (!force && (await pathExists(planPath)) && (await pathExists(prdPath))) {
     logger.info(`Plan already exists for ${itemId}, skipping`);
     if (item.state === "researched") {
       const prd = await loadPrdSafe(getItemDir(root, item.id));
@@ -316,14 +308,14 @@ export async function runPhasePlan(
     return { success: false, item, error };
   }
 
-  if (!(await fileExists(planPath))) {
+  if (!(await pathExists(planPath))) {
     const error = "Agent did not create plan.md";
     item = { ...item, last_error: error };
     await saveItem(root, item);
     return { success: false, item, error };
   }
 
-  if (!(await fileExists(prdPath))) {
+  if (!(await pathExists(prdPath))) {
     const error = "Agent did not create prd.json";
     item = { ...item, last_error: error };
     await saveItem(root, item);
@@ -612,6 +604,24 @@ export async function runPhaseComplete(
   return { success: true, item };
 }
 
+/**
+ * Determines the next phase to execute based on an item's current state.
+ *
+ * This function encodes the workflow progression from states to phases. The mapping is:
+ * - raw → research
+ * - researched → plan
+ * - planned → implement
+ * - implementing → pr
+ * - in_pr → complete
+ * - done → null (terminal)
+ *
+ * IMPORTANT: This logic must stay synchronized with:
+ * - src/domain/states.ts:3-10 (WORKFLOW_STATES array - defines state ordering)
+ * - src/commands/phase.ts:26-65 (PHASE_CONFIG - defines phases and their target states)
+ *
+ * @param item - The item to evaluate
+ * @returns The next phase name, or null if the workflow is complete
+ */
 export function getNextPhase(
   item: Item
 ): "research" | "plan" | "implement" | "pr" | "complete" | null {
