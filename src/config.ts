@@ -12,9 +12,13 @@ export interface ConfigResolved {
   base_branch: string;
   branch_prefix: string;
   agent: {
+    mode: "process" | "sdk";
     command: string;
     args: string[];
     completion_signal: string;
+    sdk_model?: string;
+    sdk_max_tokens?: number;
+    sdk_tools?: string[];
   };
   max_iterations: number;
   timeout_seconds: number;
@@ -35,9 +39,11 @@ export const DEFAULT_CONFIG: ConfigResolved = {
   base_branch: "main",
   branch_prefix: "wreckit/",
   agent: {
-    command: "claude",
-    args: ["--dangerously-skip-permissions", "--print"],
-    completion_signal: "<promise>COMPLETE</promise>",
+    mode: "sdk",
+    command: "claude", // Kept for fallback
+    args: ["--dangerously-skip-permissions", "--print"], // Kept for fallback
+    completion_signal: "<promise>COMPLETE</promise>", // Kept for fallback
+    sdk_model: "claude-sonnet-4-20250514",
   },
   max_iterations: 100,
   timeout_seconds: 3600,
@@ -46,11 +52,15 @@ export const DEFAULT_CONFIG: ConfigResolved = {
 export function mergeWithDefaults(partial: Partial<Config>): ConfigResolved {
   const agent = partial.agent
     ? {
+        mode: partial.agent.mode ?? DEFAULT_CONFIG.agent.mode,
         command: partial.agent.command ?? DEFAULT_CONFIG.agent.command,
         args: partial.agent.args ?? DEFAULT_CONFIG.agent.args,
         completion_signal:
           partial.agent.completion_signal ??
           DEFAULT_CONFIG.agent.completion_signal,
+        sdk_model: partial.agent.sdk_model,
+        sdk_max_tokens: partial.agent.sdk_max_tokens,
+        sdk_tools: partial.agent.sdk_tools,
       }
     : { ...DEFAULT_CONFIG.agent };
 

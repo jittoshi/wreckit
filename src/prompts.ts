@@ -14,6 +14,7 @@ export interface PromptVariables {
   branch_name: string;
   base_branch: string;
   completion_signal: string;
+  sdk_mode?: boolean;
   research?: string;
   plan?: string;
   prd?: string;
@@ -61,6 +62,18 @@ export function renderPrompt(
 ): string {
   let result = template;
 
+  // Handle simple {{#if}} conditionals
+  result = result.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName, content) => {
+    const value = (variables as any)[varName];
+    return value ? content : "";
+  });
+
+  // Handle simple {{#ifnot}} conditionals (inverse)
+  result = result.replace(/\{\{#ifnot (\w+)\}\}([\s\S]*?)\{\{\/ifnot\}\}/g, (_, varName, content) => {
+    const value = (variables as any)[varName];
+    return !value ? content : "";
+  });
+
   const varMap: Record<string, string | undefined> = {
     id: variables.id,
     title: variables.title,
@@ -70,6 +83,7 @@ export function renderPrompt(
     branch_name: variables.branch_name,
     base_branch: variables.base_branch,
     completion_signal: variables.completion_signal,
+    sdk_mode: variables.sdk_mode ? "true" : "",
     research: variables.research,
     plan: variables.plan,
     prd: variables.prd,

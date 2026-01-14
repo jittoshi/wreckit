@@ -133,6 +133,7 @@ async function buildPromptVariables(
     branch_name: branchName,
     base_branch: config.base_branch,
     completion_signal: config.agent.completion_signal,
+    sdk_mode: config.agent.mode === "sdk",
     research,
     plan,
     prd: prdContent,

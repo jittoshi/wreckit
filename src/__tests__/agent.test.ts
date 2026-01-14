@@ -28,6 +28,7 @@ describe("getAgentConfig", () => {
       base_branch: "main",
       branch_prefix: "wreckit/",
       agent: {
+        mode: "process",
         command: "amp",
         args: ["--dangerously-allow-all"],
         completion_signal: "<promise>COMPLETE</promise>",
@@ -39,22 +40,28 @@ describe("getAgentConfig", () => {
     const result = getAgentConfig(config);
 
     expect(result).toEqual({
+      mode: "process",
       command: "amp",
       args: ["--dangerously-allow-all"],
       completion_signal: "<promise>COMPLETE</promise>",
       timeout_seconds: 3600,
       max_iterations: 100,
+      sdk_model: undefined,
+      sdk_max_tokens: undefined,
+      sdk_tools: undefined,
     });
   });
 
   it("works with DEFAULT_CONFIG", () => {
     const result = getAgentConfig(DEFAULT_CONFIG);
 
+    expect(result.mode).toBe("sdk");
     expect(result.command).toBe("claude");
     expect(result.args).toEqual(["--dangerously-skip-permissions", "--print"]);
     expect(result.completion_signal).toBe("<promise>COMPLETE</promise>");
     expect(result.timeout_seconds).toBe(3600);
     expect(result.max_iterations).toBe(100);
+    expect(result.sdk_model).toBe("claude-sonnet-4-20250514");
   });
 
   it("extracts custom agent configuration", () => {
@@ -63,6 +70,7 @@ describe("getAgentConfig", () => {
       base_branch: "develop",
       branch_prefix: "feature/",
       agent: {
+        mode: "process",
         command: "claude",
         args: ["--dangerously-skip-permissions", "--print"],
         completion_signal: "FINISHED",
@@ -96,6 +104,7 @@ describe("runAgent", () => {
 
   it("successful run with completion signal detected", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'echo "output" && echo "<promise>COMPLETE</promise>"'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -122,6 +131,7 @@ describe("runAgent", () => {
 
   it("run without completion signal (success: false, completionDetected: false)", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'echo "output without signal"'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -147,6 +157,7 @@ describe("runAgent", () => {
 
   it("timeout handling", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", "sleep 3"],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -173,6 +184,7 @@ describe("runAgent", () => {
 
   it("dryRun mode logs but doesn't execute", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'echo "should not run"'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -201,6 +213,7 @@ describe("runAgent", () => {
 
   it("non-zero exit code handling", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'echo "error output" && exit 1'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -225,6 +238,7 @@ describe("runAgent", () => {
 
   it("non-zero exit code with completion signal still fails", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'echo "<promise>COMPLETE</promise>" && exit 1'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -248,6 +262,7 @@ describe("runAgent", () => {
 
   it("receives prompt via stdin", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "sh",
       args: ["-c", 'cat && echo "<promise>COMPLETE</promise>"'],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -271,6 +286,7 @@ describe("runAgent", () => {
 
   it("handles command not found", async () => {
     const config: AgentConfig = {
+      mode: "process",
       command: "nonexistent-command-xyz-123",
       args: [],
       completion_signal: "<promise>COMPLETE</promise>",
@@ -290,5 +306,94 @@ describe("runAgent", () => {
     expect(result.success).toBe(false);
     expect(result.exitCode).toBe(null);
     expect(result.completionDetected).toBe(false);
+  });
+
+  it("dry-run mode works with SDK mode", async () => {
+    const config: AgentConfig = {
+      mode: "sdk",
+      command: "claude",
+      args: [],
+      completion_signal: "<promise>COMPLETE</promise>",
+      timeout_seconds: 10,
+      max_iterations: 1,
+    };
+
+    const options: RunAgentOptions = {
+      config,
+      cwd: tempDir,
+      prompt: "test prompt",
+      logger: mockLogger,
+      dryRun: true,
+    };
+
+    const result = await runAgent(options);
+
+    expect(result.success).toBe(true);
+    expect(result.completionDetected).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toBe("[dry-run] No output");
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("[dry-run]")
+    );
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("SDK agent")
+    );
+  });
+
+  it("mock-agent mode works with SDK mode", async () => {
+    const config: AgentConfig = {
+      mode: "sdk",
+      command: "claude",
+      args: [],
+      completion_signal: "<promise>COMPLETE</promise>",
+      timeout_seconds: 10,
+      max_iterations: 1,
+    };
+
+    const options: RunAgentOptions = {
+      config,
+      cwd: tempDir,
+      prompt: "test prompt",
+      logger: mockLogger,
+      mockAgent: true,
+    };
+
+    const result = await runAgent(options);
+
+    expect(result.success).toBe(true);
+    expect(result.completionDetected).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("[mock-agent]");
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining("[mock-agent]")
+    );
+  });
+});
+
+describe("runAgent - SDK mode config", () => {
+  it("SDK mode with custom model configuration", () => {
+    const config: ConfigResolved = {
+      schema_version: 1,
+      base_branch: "main",
+      branch_prefix: "wreckit/",
+      agent: {
+        mode: "sdk",
+        command: "claude",
+        args: [],
+        completion_signal: "<promise>COMPLETE</promise>",
+        sdk_model: "claude-sonnet-4-20250514",
+        sdk_max_tokens: 8192,
+        sdk_tools: ["Read", "Edit", "Bash"],
+      },
+      max_iterations: 100,
+      timeout_seconds: 3600,
+    };
+
+    const result = getAgentConfig(config);
+
+    expect(result.mode).toBe("sdk");
+    expect(result.sdk_model).toBe("claude-sonnet-4-20250514");
+    expect(result.sdk_max_tokens).toBe(8192);
+    expect(result.sdk_tools).toEqual(["Read", "Edit", "Bash"]);
   });
 });

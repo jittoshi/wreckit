@@ -11,14 +11,20 @@ export const WorkflowStateSchema = z.enum([
 
 export const StoryStatusSchema = z.enum(["pending", "done"]);
 
+export const AgentModeSchema = z.enum(["process", "sdk"]);
+
 export const ConfigSchema = z.object({
   schema_version: z.number().default(1),
   base_branch: z.string().default("main"),
   branch_prefix: z.string().default("wreckit/"),
   agent: z.object({
+    mode: AgentModeSchema.default("process"),
     command: z.string(),
     args: z.array(z.string()),
     completion_signal: z.string(),
+    sdk_model: z.string().optional(),
+    sdk_max_tokens: z.number().optional(),
+    sdk_tools: z.array(z.string()).optional(),
   }),
   max_iterations: z.number().default(100),
   timeout_seconds: z.number().default(3600),
