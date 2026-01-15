@@ -224,7 +224,7 @@ export function createItemFromIdea(
     id,
     title: idea.title,
     section: idea.suggestedSection,
-    state: "raw",
+    state: "idea",
     overview,
     branch: null,
     pr_url: null,

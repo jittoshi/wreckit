@@ -45,7 +45,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "test/001-test",
     title: "Test",
     section: "test",
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -125,7 +125,7 @@ describe("idempotent phase operations", () => {
     });
 
     it("multiple writes preserve consistency", async () => {
-      const item1 = makeItem({ state: "raw" });
+      const item1 = makeItem({ state: "idea" });
       await writeItem(itemDir, item1);
 
       const item2 = { ...item1, state: "researched" as const, updated_at: "2024-01-02T00:00:00.000Z" };

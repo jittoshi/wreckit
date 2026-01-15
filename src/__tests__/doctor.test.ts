@@ -34,7 +34,7 @@ async function createItem(
     schema_version: 1,
     id,
     title: `Test item ${id}`,
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -201,12 +201,12 @@ describe("diagnose", () => {
   });
 
   it("detects stale index", async () => {
-    await createItem(tempDir, "001-item", { state: "raw" });
+    await createItem(tempDir, "001-item", { state: "idea" });
 
     const staleIndex: Index = {
       schema_version: 1,
       items: [
-        { id: "other/999-missing", state: "raw", title: "Missing item" },
+        { id: "other/999-missing", state: "idea", title: "Missing item" },
       ],
       generated_at: new Date().toISOString(),
     };
@@ -256,7 +256,7 @@ describe("applyFixes", () => {
   });
 
   it("rebuilds stale index", async () => {
-    await createItem(tempDir, "001-item", { state: "raw" });
+    await createItem(tempDir, "001-item", { state: "idea" });
 
     const diagnostics = [
       {
@@ -319,7 +319,7 @@ describe("applyFixes", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].fixed).toBe(true);
-    expect(results[0].message).toContain("raw");
+    expect(results[0].message).toContain("idea");
 
     const itemPath = path.join(
       tempDir,
@@ -330,7 +330,7 @@ describe("applyFixes", () => {
     );
     const content = await fs.readFile(itemPath, "utf-8");
     const item = JSON.parse(content);
-    expect(item.state).toBe("raw");
+    expect(item.state).toBe("idea");
   });
 
   it("does not modify non-fixable issues", async () => {
@@ -452,7 +452,7 @@ describe("doctorCommand", () => {
     );
     const content = await fs.readFile(itemPath, "utf-8");
     const item = JSON.parse(content);
-    expect(item.state).toBe("raw");
+    expect(item.state).toBe("idea");
   });
 
   it("exits with code 1 if errors remain after fixes", async () => {

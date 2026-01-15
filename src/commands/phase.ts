@@ -45,7 +45,7 @@ const PHASE_CONFIG: Record<
   }
 > = {
   research: {
-    requiredState: "raw",
+    requiredState: "idea",
     targetState: "researched",
     skipIfInTarget: true,
     runFn: runPhaseResearch,
@@ -114,7 +114,7 @@ function isInvalidTransition(
   // IMPORTANT: This array MUST match WORKFLOW_STATES in src/domain/states.ts:3-10
   // This is a local duplicate for encapsulation - update both locations if state ordering changes
   const stateOrder: WorkflowState[] = [
-    "raw",
+    "idea",
     "researched",
     "planned",
     "implementing",

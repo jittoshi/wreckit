@@ -24,7 +24,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "test/001-test",
     title: "Test",
     section: "test",
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -52,7 +52,7 @@ describe("concurrent modification handling", () => {
 
   describe("concurrent writes", () => {
     it("last write wins for simultaneous writes", async () => {
-      const item1 = makeItem({ state: "raw", title: "Version 1" });
+      const item1 = makeItem({ state: "idea", title: "Version 1" });
       const item2 = makeItem({ state: "researched", title: "Version 2" });
 
       // Simulate concurrent writes
@@ -66,11 +66,11 @@ describe("concurrent modification handling", () => {
 
       // We don't know which one wins, but it should be consistent
       expect(["Version 1", "Version 2"]).toContain(finalItem.title);
-      expect(["raw", "researched"]).toContain(finalItem.state);
+      expect(["idea", "researched"]).toContain(finalItem.state);
     });
 
     it("atomic writes prevent partial corruption", async () => {
-      const item = makeItem({ state: "raw", title: "Test Item" });
+      const item = makeItem({ state: "idea", title: "Test Item" });
       const itemPath = path.join(itemDir, "item.json");
 
       // Write initial item
@@ -96,7 +96,7 @@ describe("concurrent modification handling", () => {
 
   describe("read during write", () => {
     it("reads complete data even during concurrent writes", async () => {
-      const item = makeItem({ state: "raw" });
+      const item = makeItem({ state: "idea" });
       await writeItem(itemDir, item);
 
       // Start multiple read/write cycles
@@ -127,7 +127,7 @@ describe("concurrent modification handling", () => {
 
   describe("external modification detection", () => {
     it("detects when item.json was modified externally", async () => {
-      const item = makeItem({ state: "raw", title: "Original" });
+      const item = makeItem({ state: "idea", title: "Original" });
       await writeItem(itemDir, item);
 
       // Read the item

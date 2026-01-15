@@ -8,7 +8,7 @@ import type { Item } from "../../schemas";
 async function createItem(
   root: string,
   slug: string,
-  state: string = "raw"
+  state: string = "idea"
 ): Promise<Item> {
   const itemDir = path.join(root, ".wreckit", "items", slug);
   await fs.mkdir(itemDir, { recursive: true });
@@ -80,7 +80,7 @@ describe("buildIdMap", () => {
 
   it("builds map with sequential short IDs", async () => {
     await createItem(tempDir, "001-crash", "planned");
-    await createItem(tempDir, "002-auth", "raw");
+    await createItem(tempDir, "002-auth", "idea");
     await createItem(tempDir, "003-api", "researched");
 
     const map = await buildIdMap(tempDir);
@@ -96,7 +96,7 @@ describe("buildIdMap", () => {
       shortId: 2,
       fullId: "002-auth",
       title: "auth",
-      state: "raw",
+      state: "idea",
     });
     expect(map[2]).toEqual({
       shortId: 3,

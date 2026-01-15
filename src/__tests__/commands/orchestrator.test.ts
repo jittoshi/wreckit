@@ -32,7 +32,7 @@ function createTestItem(overrides: Partial<Item> = {}): Item {
     schema_version: 1,
     id: "001-test-feature",
     title: "Test Feature",
-    state: "raw",
+    state: "idea",
     overview: "A test feature",
     branch: null,
     pr_url: null,
@@ -98,9 +98,9 @@ describe("orchestrator", () => {
     });
 
     it("runs items in number order", async () => {
-      await setupItem(createTestItem({ id: "003-third", state: "raw" }));
-      await setupItem(createTestItem({ id: "001-first", state: "raw" }));
-      await setupItem(createTestItem({ id: "002-second", state: "raw" }));
+      await setupItem(createTestItem({ id: "003-third", state: "idea" }));
+      await setupItem(createTestItem({ id: "001-first", state: "idea" }));
+      await setupItem(createTestItem({ id: "002-second", state: "idea" }));
 
       mockedRunCommand.mockResolvedValue(undefined);
 
@@ -121,9 +121,9 @@ describe("orchestrator", () => {
     });
 
     it("tracks completed and failed separately", async () => {
-      await setupItem(createTestItem({ id: "001-success", state: "raw" }));
-      await setupItem(createTestItem({ id: "002-fail", state: "raw" }));
-      await setupItem(createTestItem({ id: "003-success", state: "raw" }));
+      await setupItem(createTestItem({ id: "001-success", state: "idea" }));
+      await setupItem(createTestItem({ id: "002-fail", state: "idea" }));
+      await setupItem(createTestItem({ id: "003-success", state: "idea" }));
 
       mockedRunCommand.mockImplementation(async (itemId: string) => {
         if (itemId === "002-fail") {
@@ -138,8 +138,8 @@ describe("orchestrator", () => {
     });
 
     it("continues after failure (doesn't stop)", async () => {
-      await setupItem(createTestItem({ id: "001-fail", state: "raw" }));
-      await setupItem(createTestItem({ id: "002-success", state: "raw" }));
+      await setupItem(createTestItem({ id: "001-fail", state: "idea" }));
+      await setupItem(createTestItem({ id: "002-success", state: "idea" }));
 
       mockedRunCommand.mockImplementation(async (itemId: string) => {
         if (itemId === "001-fail") {
@@ -155,7 +155,7 @@ describe("orchestrator", () => {
     });
 
     it("--dry-run doesn't run items", async () => {
-      await setupItem(createTestItem({ id: "001-test", state: "raw" }));
+      await setupItem(createTestItem({ id: "001-test", state: "idea" }));
 
       const result = await orchestrateAll({ dryRun: true }, mockLogger);
 
@@ -186,8 +186,8 @@ describe("orchestrator", () => {
 
     it("returns first non-done item", async () => {
       await setupItem(createTestItem({ id: "001-done", state: "done" }));
-      await setupItem(createTestItem({ id: "002-raw", state: "raw" }));
-      await setupItem(createTestItem({ id: "003-raw", state: "raw" }));
+      await setupItem(createTestItem({ id: "002-raw", state: "idea" }));
+      await setupItem(createTestItem({ id: "003-raw", state: "idea" }));
 
       mockedRunCommand.mockResolvedValue(undefined);
 
@@ -204,8 +204,8 @@ describe("orchestrator", () => {
     });
 
     it("runs only that one item", async () => {
-      await setupItem(createTestItem({ id: "001-raw", state: "raw" }));
-      await setupItem(createTestItem({ id: "002-raw", state: "raw" }));
+      await setupItem(createTestItem({ id: "001-raw", state: "idea" }));
+      await setupItem(createTestItem({ id: "002-raw", state: "idea" }));
 
       mockedRunCommand.mockResolvedValue(undefined);
 
@@ -215,7 +215,7 @@ describe("orchestrator", () => {
     });
 
     it("returns success/failure status", async () => {
-      await setupItem(createTestItem({ id: "001-fail", state: "raw" }));
+      await setupItem(createTestItem({ id: "001-fail", state: "idea" }));
 
       mockedRunCommand.mockRejectedValue(new Error("Phase failed"));
 
@@ -243,7 +243,7 @@ describe("orchestrator", () => {
     });
 
     it("returns first non-done item (sorted)", async () => {
-      await setupItem(createTestItem({ id: "002-second", state: "raw" }));
+      await setupItem(createTestItem({ id: "002-second", state: "idea" }));
       await setupItem(createTestItem({ id: "001-first", state: "done" }));
       await setupItem(createTestItem({ id: "001-first", state: "planned" }));
 
@@ -253,8 +253,8 @@ describe("orchestrator", () => {
     });
 
     it("respects numeric ordering", async () => {
-      await setupItem(createTestItem({ id: "002-second", state: "raw" }));
-      await setupItem(createTestItem({ id: "001-first", state: "raw" }));
+      await setupItem(createTestItem({ id: "002-second", state: "idea" }));
+      await setupItem(createTestItem({ id: "001-first", state: "idea" }));
 
       const result = await getNextIncompleteItem(tempDir);
 

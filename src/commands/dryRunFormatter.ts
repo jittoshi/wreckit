@@ -22,7 +22,7 @@ const PHASE_DESCRIPTIONS: Record<string, string> = {
 function getPhaseSequence(currentState: string): string[] {
   const allPhases = ["research", "plan", "implement", "pr", "complete"];
   const stateToPhaseIndex: Record<string, number> = {
-    raw: 0,
+    idea: 0,
     researched: 1,
     planned: 2,
     implementing: 3,

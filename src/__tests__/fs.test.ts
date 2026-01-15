@@ -268,7 +268,7 @@ describe("Typed wrapper tests", () => {
     schema_version: 1,
     id: "001-auth",
     title: "Auth Feature",
-    state: "raw",
+    state: "idea",
     overview: "Add authentication",
     branch: null,
     pr_url: null,
@@ -296,7 +296,7 @@ describe("Typed wrapper tests", () => {
 
   const validIndex: Index = {
     schema_version: 1,
-    items: [{ id: "001-auth", state: "raw", title: "Auth Feature" }],
+    items: [{ id: "001-auth", state: "idea", title: "Auth Feature" }],
     generated_at: "2025-01-12T00:00:00Z",
   };
 

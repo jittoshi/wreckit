@@ -19,7 +19,7 @@ function createValidItem(overrides: Partial<Item> = {}): Item {
     schema_version: 1,
     id: "001-test",
     title: "Test Feature",
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -120,14 +120,14 @@ describe("buildIndex", () => {
 
   it("builds index with items", () => {
     const items = [
-      createValidItem({ id: "001-a", title: "A", state: "raw" }),
+      createValidItem({ id: "001-a", title: "A", state: "idea" }),
       createValidItem({ id: "002-b", title: "B", state: "done" }),
     ];
 
     const result = buildIndex(items);
 
     expect(result.items).toHaveLength(2);
-    expect(result.items[0]).toEqual({ id: "001-a", title: "A", state: "raw" });
+    expect(result.items[0]).toEqual({ id: "001-a", title: "A", state: "idea" });
     expect(result.items[1]).toEqual({ id: "002-b", title: "B", state: "done" });
   });
 

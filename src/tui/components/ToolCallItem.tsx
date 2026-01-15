@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { ToolExecution } from "../dashboard";
-import { getToolColor, formatToolInput } from "../colors";
+import { getToolColor, formatToolInput, formatToolResult } from "../colors";
 
 interface ToolCallItemProps {
   tool: ToolExecution;
@@ -13,6 +13,19 @@ export function ToolCallItem({ tool, width }: ToolCallItemProps): React.ReactEle
   const statusIcon = tool.status === "running" ? "▶" : tool.status === "completed" ? "✓" : "✗";
   const inputSummary = formatToolInput(tool.input);
 
+  if (tool.status === "completed" || tool.status === "error") {
+    const maxInputLen = Math.max(10, width - tool.toolName.length - 8);
+    const shortInput = inputSummary.length > maxInputLen 
+      ? inputSummary.slice(0, maxInputLen - 1) + "…" 
+      : inputSummary;
+    return (
+      <Box width={width}>
+        <Text color={color}>[{statusIcon}] {tool.toolName}</Text>
+        <Text dimColor> {shortInput}</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" width={width}>
       <Box>
@@ -23,14 +36,6 @@ export function ToolCallItem({ tool, width }: ToolCallItemProps): React.ReactEle
       <Box paddingLeft={2}>
         <Text dimColor>{inputSummary}</Text>
       </Box>
-      {tool.result !== undefined && (
-        <Box paddingLeft={2}>
-          <Text dimColor>
-            → {typeof tool.result === "string" ? tool.result.slice(0, 100) : JSON.stringify(tool.result).slice(0, 100)}
-            {typeof tool.result === "string" && tool.result.length > 100 ? "..." : ""}
-          </Text>
-        </Box>
-      )}
     </Box>
   );
 }

@@ -174,12 +174,12 @@ describe("createItemFromIdea", () => {
     expect(item.schema_version).toBe(1);
   });
 
-  it("state is 'raw'", () => {
+  it("state is 'idea'", () => {
     const item = createItemFromIdea("001-test", {
       title: "Test",
       description: "",
     });
-    expect(item.state).toBe("raw");
+    expect(item.state).toBe("idea");
   });
 
   it("timestamps are set", () => {

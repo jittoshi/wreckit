@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const WorkflowStateSchema = z.enum([
-  "raw",
+  "idea",
   "researched",
   "planned",
   "implementing",

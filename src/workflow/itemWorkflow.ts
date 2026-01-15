@@ -156,7 +156,7 @@ export async function runPhaseResearch(
 
   if (!force && (await pathExists(researchPath))) {
     logger.info(`Research already exists for ${itemId}, skipping`);
-    if (item.state === "raw") {
+    if (item.state === "idea") {
       item = { ...item, state: "researched" };
       await saveItem(root, item);
     }
@@ -165,17 +165,17 @@ export async function runPhaseResearch(
 
   const targetState: WorkflowState = "researched";
 
-  if (item.state !== "raw" && !force) {
+  if (item.state !== "idea" && !force) {
     return {
       success: false,
       item,
-      error: `Item is in state ${item.state}, expected 'raw' for research phase`,
+      error: `Item is in state ${item.state}, expected 'idea' for research phase`,
     };
   }
 
   const originalState = item.state;
-  if (force && item.state !== "raw") {
-    item = { ...item, state: "raw" };
+  if (force && item.state !== "idea") {
+    item = { ...item, state: "idea" };
   }
 
   const template = await loadPromptTemplate(root, "research");
@@ -673,7 +673,7 @@ export function getNextPhase(
   item: Item
 ): "research" | "plan" | "implement" | "pr" | "complete" | null {
   switch (item.state) {
-    case "raw":
+    case "idea":
       return "research";
     case "researched":
       return "plan";

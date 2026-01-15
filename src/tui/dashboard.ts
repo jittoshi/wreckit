@@ -89,7 +89,7 @@ export function getStateIcon(state: string): string {
     case "implementing":
     case "in_pr":
       return "→";
-    case "raw":
+    case "idea":
     case "researched":
     case "planned":
     default:

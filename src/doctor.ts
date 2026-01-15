@@ -420,7 +420,7 @@ export async function applyFixes(
 
             let newState = item.state;
             if (item.state === "researched" && !hasResearch) {
-              newState = "raw";
+              newState = "idea";
             } else if (
               item.state === "planned" &&
               (!hasPlan || !hasPrd) &&
@@ -428,7 +428,7 @@ export async function applyFixes(
             ) {
               newState = "researched";
             } else if (item.state === "planned" && !hasPlan && !hasPrd) {
-              newState = hasResearch ? "researched" : "raw";
+              newState = hasResearch ? "researched" : "idea";
             }
 
             if (newState !== item.state) {

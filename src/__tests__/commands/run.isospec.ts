@@ -41,7 +41,7 @@ function createTestItem(overrides: Partial<Item> = {}): Item {
     id: "features/001-test-feature",
     title: "Test Feature",
     section: "features",
-    state: "raw",
+    state: "idea",
     overview: "A test feature",
     branch: null,
     pr_url: null,
@@ -112,7 +112,7 @@ describe("runCommand", () => {
 
   describe("full workflow tests", () => {
     it("runs all phases from raw to done", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       let currentItem = { ...item };
@@ -157,7 +157,7 @@ describe("runCommand", () => {
     });
 
     it("calls phases in correct order", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       const callOrder: string[] = [];
@@ -269,7 +269,7 @@ describe("runCommand", () => {
 
   describe("artifact skip tests", () => {
     it("skips research phase if research.md exists (without --force)", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
       await fs.writeFile(path.join(itemDir, "research.md"), "# Research", "utf-8");
@@ -336,7 +336,7 @@ describe("runCommand", () => {
     });
 
     it("with --force, runs even with existing artifacts", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
       await fs.writeFile(path.join(itemDir, "research.md"), "# Research", "utf-8");
@@ -369,7 +369,7 @@ describe("runCommand", () => {
 
   describe("error handling tests", () => {
     it("phase failure stops execution", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -384,7 +384,7 @@ describe("runCommand", () => {
     });
 
     it("error logged with item ID", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -425,7 +425,7 @@ describe("runCommand", () => {
 
   describe("dry-run option", () => {
     it("shows what would be done without running phases", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       await runCommand(item.id, { dryRun: true }, mockLogger);

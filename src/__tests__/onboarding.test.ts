@@ -116,7 +116,7 @@ describe("runOnboardingIfNeeded", () => {
           schema_version: 1,
           id: "001-test-idea",
           title: "Test idea",
-          state: "raw",
+          state: "idea",
           overview: "",
           branch: null,
           pr_url: null,

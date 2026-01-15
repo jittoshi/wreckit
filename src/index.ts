@@ -173,7 +173,7 @@ program
   .command("list")
   .description("List items with optional filtering")
   .option("--json", "Output as JSON")
-  .option("--state <state>", "Filter by state (raw, researched, planned, implementing, in_pr, done)")
+  .option("--state <state>", "Filter by state (idea, researched, planned, implementing, in_pr, done)")
   .action(async (options, cmd) => {
     const globalOpts = cmd.optsWithGlobals();
     await executeCommand(
@@ -224,7 +224,7 @@ program
 
 program
   .command("research <id>")
-  .description("Run research phase: raw → researched")
+  .description("Run research phase: idea → researched")
   .option("--force", "Regenerate artifacts even if they exist")
   .action(async (id, options, cmd) => {
     const globalOpts = cmd.optsWithGlobals();

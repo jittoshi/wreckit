@@ -53,7 +53,7 @@ function makeContext(overrides: Partial<ValidationContext> = {}): ValidationCont
 describe("state machine", () => {
   describe("getNextState", () => {
     it.each([
-      ["raw", "researched"],
+      ["idea", "researched"],
       ["researched", "planned"],
       ["planned", "implementing"],
       ["implementing", "in_pr"],
@@ -69,7 +69,7 @@ describe("state machine", () => {
 
   describe("getAllowedNextStates", () => {
     it.each([
-      ["raw", ["researched"]],
+      ["idea", ["researched"]],
       ["researched", ["planned"]],
       ["planned", ["implementing"]],
       ["implementing", ["in_pr"]],
@@ -85,7 +85,7 @@ describe("state machine", () => {
       expect(isTerminalState("done")).toBe(true);
     });
 
-    it.each(["raw", "researched", "planned", "implementing", "in_pr"] as const)(
+    it.each(["idea", "researched", "planned", "implementing", "in_pr"] as const)(
       "returns false for %s",
       (state) => {
         expect(isTerminalState(state)).toBe(false);
@@ -190,26 +190,26 @@ describe("validation", () => {
 describe("validateTransition", () => {
   it("valid: raw -> researched with hasResearchMd", () => {
     const ctx = makeContext({ hasResearchMd: true });
-    expect(validateTransition("raw", "researched", ctx)).toEqual({ valid: true });
+    expect(validateTransition("idea", "researched", ctx)).toEqual({ valid: true });
   });
 
   it("invalid: raw -> researched without hasResearchMd", () => {
     const ctx = makeContext({ hasResearchMd: false });
-    const result = validateTransition("raw", "researched", ctx);
+    const result = validateTransition("idea", "researched", ctx);
     expect(result.valid).toBe(false);
   });
 
   it("invalid: skip states (raw -> planned)", () => {
     const prd = makePrd([makeStory()]);
     const ctx = makeContext({ hasResearchMd: true, hasPlanMd: true, prd });
-    const result = validateTransition("raw", "planned", ctx);
+    const result = validateTransition("idea", "planned", ctx);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("cannot transition");
   });
 
   it("invalid: backward transition (planned -> raw)", () => {
     const ctx = makeContext();
-    const result = validateTransition("planned", "raw", ctx);
+    const result = validateTransition("planned", "idea", ctx);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("cannot transition");
   });
@@ -219,7 +219,7 @@ describe("validateTransition", () => {
     const prdAllDone = makePrd([makeStory({ status: "done" })]);
 
     expect(
-      validateTransition("raw", "researched", makeContext({ hasResearchMd: true }))
+      validateTransition("idea", "researched", makeContext({ hasResearchMd: true }))
     ).toEqual({ valid: true });
 
     expect(
@@ -342,7 +342,7 @@ describe("applyStateTransition", () => {
       id: "test/001-test",
       title: "Test",
       section: "test",
-      state: "raw",
+      state: "idea",
       overview: "Test overview",
       branch: null,
       pr_url: null,
@@ -360,7 +360,7 @@ describe("applyStateTransition", () => {
       expect(result.nextItem.state).toBe("researched");
       expect(result.nextItem.updated_at).not.toBe(item.updated_at);
       // Original item unchanged
-      expect(item.state).toBe("raw");
+      expect(item.state).toBe("idea");
       expect(item.updated_at).toBe("2024-01-01T00:00:00.000Z");
     }
   });
@@ -371,7 +371,7 @@ describe("applyStateTransition", () => {
       id: "test/001-test",
       title: "Test",
       section: "test",
-      state: "raw",
+      state: "idea",
       overview: "Test overview",
       branch: null,
       pr_url: null,
@@ -421,7 +421,7 @@ describe("applyStateTransition", () => {
       id: "test/001-test",
       title: "Test",
       section: "test",
-      state: "raw",
+      state: "idea",
       overview: "Test overview",
       branch: null,
       pr_url: null,

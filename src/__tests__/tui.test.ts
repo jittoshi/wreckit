@@ -16,7 +16,7 @@ function createTestItem(overrides: Partial<IndexItem> = {}): IndexItem {
   return {
     id: "foundation/001-core-types",
     title: "Core Types",
-    state: "raw",
+    state: "idea",
     ...overrides,
   };
 }
@@ -37,7 +37,7 @@ describe("TUI", () => {
       const items = [
         createTestItem({ id: "foundation/001-core-types", state: "done" }),
         createTestItem({ id: "foundation/002-api-layer", state: "implementing" }),
-        createTestItem({ id: "features/001-auth", state: "raw" }),
+        createTestItem({ id: "features/001-auth", state: "idea" }),
       ];
 
       const state = createTuiState(items);
@@ -52,7 +52,7 @@ describe("TUI", () => {
         createTestItem({ state: "done" }),
         createTestItem({ id: "item2", state: "done" }),
         createTestItem({ id: "item3", state: "implementing" }),
-        createTestItem({ id: "item4", state: "raw" }),
+        createTestItem({ id: "item4", state: "idea" }),
       ];
 
       const state = createTuiState(items);
@@ -105,7 +105,7 @@ describe("TUI", () => {
       const items = [
         createTestItem({ id: "item1", state: "done" }),
         createTestItem({ id: "item2", state: "implementing" }),
-        createTestItem({ id: "item3", state: "raw" }),
+        createTestItem({ id: "item3", state: "idea" }),
       ];
       const state = createTuiState(items);
 
@@ -119,8 +119,8 @@ describe("TUI", () => {
     it("renders progress bar/count", () => {
       const items = [
         createTestItem({ id: "item1", state: "done" }),
-        createTestItem({ id: "item2", state: "raw" }),
-        createTestItem({ id: "item3", state: "raw" }),
+        createTestItem({ id: "item2", state: "idea" }),
+        createTestItem({ id: "item3", state: "idea" }),
       ];
       const state = createTuiState(items);
 
@@ -226,7 +226,7 @@ describe("TUI", () => {
     });
 
     it("returns ○ for raw", () => {
-      expect(getStateIcon("raw")).toBe("○");
+      expect(getStateIcon("idea")).toBe("○");
     });
 
     it("returns ○ for researched", () => {

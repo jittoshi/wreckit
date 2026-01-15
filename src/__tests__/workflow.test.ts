@@ -85,7 +85,7 @@ function createTestItem(overrides: Partial<Item> = {}): Item {
     schema_version: 1,
     id: "001-test-feature",
     title: "Test Feature",
-    state: "raw",
+    state: "idea",
     overview: "A test feature",
     branch: null,
     pr_url: null,
@@ -199,7 +199,7 @@ describe("workflow", () => {
 
   describe("buildValidationContext", () => {
     it("returns correct flags based on file existence", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
       const ctx = await buildValidationContext(tempDir, item);
@@ -212,7 +212,7 @@ describe("workflow", () => {
     });
 
     it("detects research.md when present", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
       await fs.writeFile(
         path.join(itemDir, "research.md"),
@@ -242,7 +242,7 @@ describe("workflow", () => {
     });
 
     it("handles missing files gracefully", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       const ctx = await buildValidationContext(tempDir, item);
@@ -255,7 +255,7 @@ describe("workflow", () => {
 
   describe("runPhaseResearch", () => {
     it("transitions from raw to researched on success", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
       mockedRunAgent.mockImplementation(
@@ -286,11 +286,11 @@ describe("workflow", () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("raw");
+      expect(result.error).toContain("idea");
     });
 
     it("fails when research.md not created by agent", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
       mockedRunAgent.mockImplementation(
@@ -342,7 +342,7 @@ describe("workflow", () => {
     });
 
     it("fails when not in researched state", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       const result = await runPhasePlan(item.id, {
@@ -444,7 +444,7 @@ describe("workflow", () => {
     });
 
     it("fails when not in planned or implementing state", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       const result = await runPhaseImplement(item.id, {
@@ -718,7 +718,7 @@ describe("workflow", () => {
 
   describe("getNextPhase", () => {
     it("raw -> 'research'", () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       expect(getNextPhase(item)).toBe("research");
     });
 

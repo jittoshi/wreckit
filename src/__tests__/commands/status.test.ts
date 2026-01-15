@@ -16,7 +16,7 @@ function createMockLogger() {
   } satisfies Logger;
 }
 
-async function createItem(root: string, slug: string, state: string = "raw"): Promise<Item> {
+async function createItem(root: string, slug: string, state: string = "idea"): Promise<Item> {
   const itemDir = path.join(root, ".wreckit", "items", slug);
   await fs.mkdir(itemDir, { recursive: true });
 
@@ -115,7 +115,7 @@ describe("statusCommand", () => {
   });
 
   it("shows multiple items with correct states", async () => {
-    await createItem(tempDir, "001-core-types", "raw");
+    await createItem(tempDir, "001-core-types", "idea");
     await createItem(tempDir, "002-api-layer", "researched");
     await createItem(tempDir, "003-auth", "planned");
 
@@ -125,7 +125,7 @@ describe("statusCommand", () => {
     await statusCommand({}, logger);
 
     const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
-    expect(calls.some((c) => c.includes("raw"))).toBe(true);
+    expect(calls.some((c) => c.includes("idea"))).toBe(true);
     expect(calls.some((c) => c.includes("researched"))).toBe(true);
     expect(calls.some((c) => c.includes("planned"))).toBe(true);
     
@@ -133,7 +133,7 @@ describe("statusCommand", () => {
   });
 
   it("outputs valid Index JSON with --json", async () => {
-    await createItem(tempDir, "001-test", "raw");
+    await createItem(tempDir, "001-test", "idea");
     await createItem(tempDir, "002-bug", "done");
 
     const logger = createMockLogger();

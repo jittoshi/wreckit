@@ -61,7 +61,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     id: "test/001-test",
     title: "Test",
     section: "test",
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -166,7 +166,7 @@ describe("property-based state machine tests", () => {
           // Create appropriate context for the transition
           let ctx: ValidationContext;
           switch (state) {
-            case "raw":
+            case "idea":
               ctx = makeContext({ hasResearchMd: true });
               break;
             case "researched":
@@ -204,8 +204,8 @@ describe("property-based state machine tests", () => {
 
     it("result item is a new object, not the input", () => {
       fc.assert(
-        fc.property(fc.constant("raw"), () => {
-          const item = makeItem({ state: "raw" });
+        fc.property(fc.constant("idea"), () => {
+          const item = makeItem({ state: "idea" });
           const ctx = makeContext({ hasResearchMd: true });
           
           const result = applyStateTransition(item, ctx);
@@ -228,7 +228,7 @@ describe("property-based state machine tests", () => {
 
     it("getNextState chain covers all states exactly once", () => {
       const visited: string[] = [];
-      let current: typeof WORKFLOW_STATES[number] | null = "raw";
+      let current: typeof WORKFLOW_STATES[number] | null = "idea";
       
       while (current !== null) {
         visited.push(current);

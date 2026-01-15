@@ -7,7 +7,7 @@
 | `wreckit` | Run all incomplete items (research → plan → implement → PR) |
 | `wreckit next` | Run next incomplete item |
 | `wreckit run <id>` | Run single item through all phases (id: `1`, `2`, or `001-slug`) |
-| `wreckit ideas < FILE` | Ingest ideas (create raw items) |
+| `wreckit ideas < FILE` | Ingest ideas (create idea items) |
 | `wreckit status` | List all items + state |
 | `wreckit list` | List items (with optional `--state` filtering) |
 | `wreckit show <id>` | Show item details |
@@ -18,7 +18,7 @@
 
 | Command | Transition |
 |---------|------------|
-| `wreckit research <id>` | raw → researched |
+| `wreckit research <id>` | idea → researched |
 | `wreckit plan <id>` | researched → planned |
 | `wreckit implement <id>` | planned → implementing |
 | `wreckit pr <id>` | implementing → in_pr |
@@ -38,7 +38,7 @@
 ## State Flow
 
 ```
-raw → researched → planned → implementing → in_pr → done
+idea → researched → planned → implementing → in_pr → done
 ```
 
 ## Testing

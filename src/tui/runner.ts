@@ -7,6 +7,20 @@ import { createTuiState, updateTuiState, type TuiState, type AgentActivityForIte
 import { InkApp } from "./InkApp";
 import type { AgentEvent } from "./agentEvents";
 
+function sanitizeAssistantText(text: string): string | null {
+  if (!text || !text.trim()) return null;
+
+  let cleaned = text.replace(/```[\s\S]*?```/g, "").trim();
+
+  if (!cleaned) return null;
+
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+  if (/^tool\s*:/i.test(cleaned)) return null;
+
+  return cleaned || null;
+}
+
 export interface TuiOptions {
   onQuit?: () => void;
   onLogs?: () => void;
@@ -132,8 +146,19 @@ export class TuiRunner {
 
     switch (event.type) {
       case "assistant_text": {
-        const newThoughts = [...activity.thoughts, event.text].slice(-MAX_THOUGHTS);
-        activity.thoughts = newThoughts;
+        const cleaned = sanitizeAssistantText(event.text);
+        if (!cleaned) break;
+
+        const joinedThoughts = [...activity.thoughts];
+        const last = joinedThoughts[joinedThoughts.length - 1];
+
+        if (last && last.length < 120) {
+          joinedThoughts[joinedThoughts.length - 1] = `${last} ${cleaned}`;
+        } else {
+          joinedThoughts.push(cleaned);
+        }
+
+        activity.thoughts = joinedThoughts.slice(-MAX_THOUGHTS);
         break;
       }
       case "tool_started": {

@@ -487,7 +487,7 @@ describe("Repo State Detection - Tests 31-41", () => {
           id: "features/001-test-idea",
           title: "Test idea",
           section: "features",
-          state: "raw",
+          state: "idea",
           overview: "",
           branch: null,
           pr_url: null,

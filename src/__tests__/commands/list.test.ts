@@ -19,7 +19,7 @@ function createMockLogger() {
 async function createItem(
   root: string,
   id: string,
-  state: string = "raw"
+  state: string = "idea"
 ): Promise<Item> {
   const itemDir = path.join(root, ".wreckit", "items", id);
   await fs.mkdir(itemDir, { recursive: true });
@@ -70,7 +70,7 @@ describe("listCommand", () => {
   });
 
   it("lists all items with state and title", async () => {
-    await createItem(tempDir, "001-auth", "raw");
+    await createItem(tempDir, "001-auth", "idea");
     await createItem(tempDir, "002-api", "researched");
     await createItem(tempDir, "003-crash", "planned");
 
@@ -89,14 +89,14 @@ describe("listCommand", () => {
   });
 
   it("filters by state when --state option provided", async () => {
-    await createItem(tempDir, "001-auth", "raw");
+    await createItem(tempDir, "001-auth", "idea");
     await createItem(tempDir, "002-api", "researched");
     await createItem(tempDir, "003-crash", "planned");
 
     const logger = createMockLogger();
     const consoleSpy = spyOn(console, "log");
 
-    await listCommand({ state: "raw" }, logger);
+    await listCommand({ state: "idea" }, logger);
 
     const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
     expect(calls.some((c) => c.includes("auth"))).toBe(true);
@@ -107,7 +107,7 @@ describe("listCommand", () => {
   });
 
   it("outputs JSON when --json option provided", async () => {
-    await createItem(tempDir, "001-auth", "raw");
+    await createItem(tempDir, "001-auth", "idea");
     await createItem(tempDir, "002-crash", "planned");
 
     const logger = createMockLogger();
@@ -129,9 +129,9 @@ describe("listCommand", () => {
   });
 
   it("lists items sorted by id with short numeric IDs", async () => {
-    await createItem(tempDir, "002-second", "raw");
-    await createItem(tempDir, "001-first", "raw");
-    await createItem(tempDir, "003-third", "raw");
+    await createItem(tempDir, "002-second", "idea");
+    await createItem(tempDir, "001-first", "idea");
+    await createItem(tempDir, "003-third", "idea");
 
     const logger = createMockLogger();
     const consoleSpy = spyOn(console, "log");

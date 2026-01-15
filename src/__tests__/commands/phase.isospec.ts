@@ -42,7 +42,7 @@ function createTestItem(overrides: Partial<Item> = {}): Item {
     id: "features/001-test-feature",
     title: "Test Feature",
     section: "features",
-    state: "raw",
+    state: "idea",
     overview: "A test feature",
     branch: null,
     pr_url: null,
@@ -109,7 +109,7 @@ describe("runPhaseCommand", () => {
     });
 
     it("finds existing item", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -123,7 +123,7 @@ describe("runPhaseCommand", () => {
 
   describe("phase routing", () => {
     it("calls runPhaseResearch for research phase", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -257,8 +257,8 @@ describe("runPhaseCommand", () => {
       ).rejects.toThrow("invalid transition");
     });
 
-    it("plan on 'raw' item throws error (wrong state)", async () => {
-      const item = createTestItem({ state: "raw" });
+    it("plan on 'idea' item throws error (wrong state)", async () => {
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       await expect(
@@ -269,7 +269,7 @@ describe("runPhaseCommand", () => {
 
   describe("--dry-run option", () => {
     it("shows what would be done without running", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       await runPhaseCommand("research", item.id, { dryRun: true }, mockLogger);
@@ -292,7 +292,7 @@ describe("runPhaseCommand", () => {
 
   describe("--force option", () => {
     it("passes force to workflow options", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -310,7 +310,7 @@ describe("runPhaseCommand", () => {
 
   describe("error handling", () => {
     it("throws when workflow function fails", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue(
@@ -323,7 +323,7 @@ describe("runPhaseCommand", () => {
     });
 
     it("includes phase name in error message when no error provided", async () => {
-      const item = createTestItem({ state: "raw" });
+      const item = createTestItem({ state: "idea" });
       await setupItem(item);
 
       mockedRunPhaseResearch.mockResolvedValue({

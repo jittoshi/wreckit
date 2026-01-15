@@ -29,7 +29,7 @@ async function createItem(
     schema_version: 1,
     id,
     title: id.replace(/^\d+-/, "").replace(/-/g, " "),
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -146,7 +146,7 @@ describe("showCommand", () => {
   it("shows item details correctly", async () => {
     await createItem(tempDir, "001-test", {
       title: "Test Feature",
-      state: "raw",
+      state: "idea",
       overview: "A test feature",
     });
 

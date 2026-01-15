@@ -95,7 +95,7 @@ async function createItem(
     schema_version: 1,
     id,
     title: `Test item ${id}`,
-    state: "raw",
+    state: "idea",
     overview: "Test overview",
     branch: null,
     pr_url: null,
@@ -176,7 +176,7 @@ describe("State Conflict Resolution", () => {
     });
 
     it("70: Raw but research.md exists - should detect upgrade opportunity", async () => {
-      const itemDir = await createItem(tempDir, "001-item", { state: "raw" });
+      const itemDir = await createItem(tempDir, "001-item", { state: "idea" });
       await createResearch(itemDir);
 
       const diagnostics = await diagnose(tempDir);
@@ -339,7 +339,7 @@ describe("State Conflict Resolution", () => {
 
     it("79: raw with pr_url set - unusual but valid", async () => {
       await createItem(tempDir, "001-item", {
-        state: "raw",
+        state: "idea",
         pr_url: "https://github.com/org/repo/pull/123",
         pr_number: 123,
       });
@@ -386,7 +386,7 @@ describe("State Conflict Resolution", () => {
 
     it("82: raw with branch set - valid state", async () => {
       await createItem(tempDir, "001-item", {
-        state: "raw",
+        state: "idea",
         branch: "wreckit/001-item",
       });
 
@@ -563,7 +563,7 @@ describe("State Conflict Resolution", () => {
     });
 
     it("raw state with no artifacts - no diagnostic", async () => {
-      await createItem(tempDir, "001-item", { state: "raw" });
+      await createItem(tempDir, "001-item", { state: "idea" });
 
       const diagnostics = await diagnose(tempDir);
 
@@ -573,7 +573,7 @@ describe("State Conflict Resolution", () => {
 
   describe("Multiple Items with Different States", () => {
     it("handles multiple items with varying artifact completeness", async () => {
-      const item1Dir = await createItem(tempDir, "001-raw", { state: "raw" });
+      const item1Dir = await createItem(tempDir, "001-raw", { state: "idea" });
 
       const item2Dir = await createItem(tempDir, "002-researched", { state: "researched" });
       await createResearch(item2Dir);

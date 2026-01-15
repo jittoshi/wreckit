@@ -12,7 +12,7 @@ import {
 
 describe("WorkflowStateSchema", () => {
   it("accepts valid states", () => {
-    const states = ["raw", "researched", "planned", "implementing", "in_pr", "done"];
+    const states = ["idea", "researched", "planned", "implementing", "in_pr", "done"];
     for (const state of states) {
       expect(WorkflowStateSchema.parse(state)).toBe(state);
     }
@@ -81,7 +81,7 @@ describe("ItemSchema", () => {
       id: "section/001-slug",
       title: "Feature name",
       section: "section",
-      state: "raw",
+      state: "idea",
       overview: "Description",
       branch: null,
       pr_url: null,
@@ -146,7 +146,7 @@ describe("ItemSchema", () => {
       id: "section/001-slug",
       title: "Feature name",
       section: "section",
-      state: "raw",
+      state: "idea",
       overview: "Description",
       branch: null,
       pr_url: null,
@@ -251,7 +251,7 @@ describe("IndexItemSchema", () => {
   it("parses valid index item from SPEC", () => {
     const indexItem = {
       id: "foundation/001-core-types",
-      state: "raw",
+      state: "idea",
       title: "Core Types",
     };
     const result = IndexItemSchema.parse(indexItem);
@@ -273,7 +273,7 @@ describe("IndexSchema", () => {
     const index = {
       schema_version: 1,
       items: [
-        { id: "foundation/001-core-types", state: "raw", title: "Core Types" },
+        { id: "foundation/001-core-types", state: "idea", title: "Core Types" },
       ],
       generated_at: "2025-01-12T00:00:00Z",
     };
