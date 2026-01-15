@@ -4,12 +4,19 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { Logger } from "../../logging";
 import { FileNotFoundError } from "../../errors";
-import type { AgentParsedIdea } from "../../domain/ideas-agent";
+import type { ParsedIdea } from "../../domain/ideas";
 
-const mockedParseIdeasWithAgent = vi.fn<(text: string, root: string) => Promise<AgentParsedIdea[]>>();
+const mockedParseIdeasWithAgent = vi.fn<(text: string, root: string) => Promise<ParsedIdea[]>>();
+const mockedRunIdeaInterview = vi.fn<(root: string) => Promise<ParsedIdea[]>>();
+const mockedRunSimpleInterview = vi.fn<() => Promise<ParsedIdea[]>>();
 
 mock.module("../../domain/ideas-agent", () => ({
   parseIdeasWithAgent: mockedParseIdeasWithAgent,
+}));
+
+mock.module("../../domain/ideas-interview", () => ({
+  runIdeaInterview: mockedRunIdeaInterview,
+  runSimpleInterview: mockedRunSimpleInterview,
 }));
 
 const { ideasCommand, readFile } = await import("../../commands/ideas");
@@ -52,8 +59,8 @@ describe("ideasCommand", () => {
     await fs.writeFile(ideasFile, "# Add dark mode\nTheme support\n\n# Fix bug\nBroken login");
 
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "Add dark mode", overview: "Theme support" },
-      { title: "Fix bug", overview: "Broken login" },
+      { title: "Add dark mode", description: "Theme support" },
+      { title: "Fix bug", description: "Broken login" },
     ]);
 
     await ideasCommand({ file: ideasFile, cwd: tempDir }, mockLogger);
@@ -70,8 +77,8 @@ describe("ideasCommand", () => {
     await fs.writeFile(ideasFile, "# First feature\n\n# Second feature");
 
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "First feature", overview: "" },
-      { title: "Second feature", overview: "" },
+      { title: "First feature", description: "" },
+      { title: "Second feature", description: "" },
     ]);
 
     await ideasCommand({ file: ideasFile, cwd: tempDir }, mockLogger);
@@ -88,8 +95,8 @@ describe("ideasCommand", () => {
     await fs.writeFile(ideasFile, "# Add feature\n# Fix bug");
 
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "Add feature", overview: "" },
-      { title: "Fix bug", overview: "" },
+      { title: "Add feature", description: "" },
+      { title: "Fix bug", description: "" },
     ]);
 
     const consoleSpy = spyOn(console, "log");
@@ -107,7 +114,7 @@ describe("ideasCommand", () => {
     await fs.writeFile(ideasFile, "# Add dark mode");
 
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "Add dark mode", overview: "" },
+      { title: "Add dark mode", description: "" },
     ]);
 
     const consoleSpy = spyOn(console, "log");
@@ -127,7 +134,7 @@ describe("ideasCommand", () => {
     await fs.writeFile(ideasFile, "# Add dark mode");
 
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "Add dark mode", overview: "" },
+      { title: "Add dark mode", description: "" },
     ]);
 
     await ideasCommand({ file: ideasFile, cwd: tempDir }, mockLogger);
@@ -170,8 +177,8 @@ describe("ideasCommand", () => {
 
   it("works with inputOverride parameter", async () => {
     mockedParseIdeasWithAgent.mockResolvedValue([
-      { title: "Test feature", overview: "" },
-      { title: "Fix test bug", overview: "" },
+      { title: "Test feature", description: "" },
+      { title: "Fix test bug", description: "" },
     ]);
 
     await ideasCommand({ cwd: tempDir }, mockLogger, "# Test feature\n# Fix test bug");

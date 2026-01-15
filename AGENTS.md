@@ -76,3 +76,58 @@ bun test src/__tests__/foo.test.ts # Single file
 - `0` — Success
 - `1` — Error
 - `130` — Interrupted
+
+## Claude Agent SDK Patterns
+
+### Session API vs Query API
+
+| API | Use Case | MCP Support |
+|-----|----------|-------------|
+| `unstable_v2_createSession()` | Interactive multi-turn conversations | ❌ No |
+| `query()` | Autonomous agent tasks with tools | ✅ Yes |
+
+### Piping Session → Query with MCP
+
+To use MCP tools after a conversational session:
+
+1. **Capture session ID** during streaming:
+   ```typescript
+   for await (const msg of session.stream()) {
+     if (msg.session_id) sessionId = msg.session_id;
+   }
+   ```
+
+2. **Resume with query()** to access MCP:
+   ```typescript
+   const result = query({
+     prompt: "Extract structured data from our conversation",
+     options: {
+       resume: sessionId,  // Continues with full context
+       mcpServers: { wreckit: wreckitMcpServer }
+     }
+   });
+   ```
+
+### MCP Server Pattern
+
+Custom MCP tools for structured output (see `src/agent/mcp/wreckitMcpServer.ts`):
+
+```typescript
+const server = createWreckitMcpServer({
+  onInterviewIdeas: (ideas) => { capturedIdeas = ideas; },
+  onParsedIdeas: (ideas) => { /* from ideas command */ },
+  onSavePrd: (prd) => { /* from plan phase */ },
+  onUpdateStoryStatus: (storyId, status) => { /* from implement phase */ },
+});
+```
+
+### Available MCP Tools
+
+| Tool | Phase | Purpose |
+|------|-------|---------|
+| `save_interview_ideas` | Interview | Capture structured ideas from conversational interview |
+| `save_parsed_ideas` | Ideas ingestion | Parse ideas from piped document input |
+| `save_prd` | Plan | Save PRD with user stories (replaces writing prd.json directly) |
+| `update_story_status` | Implement | Mark a story as done (replaces editing prd.json directly) |
+
+Prompt the agent to call MCP tools instead of outputting JSON directly or editing JSON files.

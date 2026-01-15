@@ -93,7 +93,7 @@ program.action(async () => {
 
 program
    .command("ideas")
-   .description("Ingest ideas from stdin or file")
+   .description("Ingest ideas from stdin, file, or interactive interview")
    .option("-f, --file <path>", "Read ideas from file instead of stdin")
    .action(async (options, cmd) => {
      const globalOpts = cmd.optsWithGlobals();
@@ -104,6 +104,7 @@ program
              file: options.file,
              dryRun: globalOpts.dryRun,
              cwd: resolveCwd(globalOpts.cwd),
+             verbose: globalOpts.verbose,
            },
            logger
          );
@@ -120,7 +121,7 @@ program
 
 program
    .command("idea")
-   .description("Add a new idea (interactive or from stdin)")
+   .description("Add a new idea via AI interview")
    .option("-f, --file <path>", "Read idea from file instead of interactive prompt")
    .action(async (options, cmd) => {
      const globalOpts = cmd.optsWithGlobals();
@@ -129,9 +130,9 @@ program
          await ideasCommand(
            {
              file: options.file,
-             interactive: true,
              dryRun: globalOpts.dryRun,
              cwd: resolveCwd(globalOpts.cwd),
+             verbose: globalOpts.verbose,
            },
            logger
          );

@@ -136,39 +136,20 @@ Create TWO files at `{{item_path}}`:
 - [Other relevant files with line references]
 ```
 
-### 2. prd.json - Structured User Stories
+### 2. PRD - Structured User Stories
 
-```json
-{
-  "schema_version": 1,
-  "id": "{{id}}",
-  "branch_name": "{{branch_name}}",
-  "user_stories": [
-    {
-      "id": "US-001",
-      "title": "[First story title]",
-      "acceptance_criteria": [
-        "Criterion 1 - specific and testable",
-        "Criterion 2 - specific and testable"
-      ],
-      "priority": 1,
-      "status": "pending",
-      "notes": "[Any implementation notes]"
-    },
-    {
-      "id": "US-002",
-      "title": "[Second story title]",
-      "acceptance_criteria": [
-        "Criterion 1",
-        "Criterion 2"
-      ],
-      "priority": 2,
-      "status": "pending",
-      "notes": ""
-    }
-  ]
-}
-```
+Call the `save_prd` MCP tool with the PRD data. The PRD schema:
+
+- `schema_version`: Always 1
+- `id`: "{{id}}"
+- `branch_name`: "{{branch_name}}"
+- `user_stories`: Array of stories, each with:
+  - `id`: Story ID like "US-001"
+  - `title`: Short descriptive title
+  - `acceptance_criteria`: Array of specific, testable criteria
+  - `priority`: Number (1 = highest)
+  - `status`: "pending" (all new stories start as pending)
+  - `notes`: Implementation notes (can be empty string)
 
 ## Important Guidelines
 
@@ -224,5 +205,9 @@ Create TWO files at `{{item_path}}`:
 
 ## Completion
 
-When you have created both `{{item_path}}/plan.md` and `{{item_path}}/prd.json`, output the following signal:
+When you have:
+1. Created `{{item_path}}/plan.md`
+2. Called the `save_prd` tool with the PRD data
+
+Output the following signal:
 {{completion_signal}}

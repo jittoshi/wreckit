@@ -3,11 +3,9 @@
   "base_branch": "main",
   "branch_prefix": "wreckit/",
   "agent": {
+    "mode": "sdk",
     "command": "claude",
-    "args": [
-      "--dangerously-skip-permissions",
-      "--print"
-    ],
+    "args": [],
     "completion_signal": "<promise>COMPLETE</promise>"
   },
   "max_iterations": 100,

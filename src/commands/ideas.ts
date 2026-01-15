@@ -1,17 +1,17 @@
 import * as fs from "node:fs/promises";
 import * as readline from "node:readline";
-import { text, isCancel } from "@clack/prompts";
 import type { Logger } from "../logging";
-import { findRepoRoot, findRootFromOptions } from "../fs/paths";
+import { findRootFromOptions } from "../fs/paths";
 import { persistItems, generateSlug } from "../domain/ideas";
 import { parseIdeasWithAgent } from "../domain/ideas-agent";
+import { runIdeaInterview, runSimpleInterview } from "../domain/ideas-interview";
 import { FileNotFoundError } from "../errors";
 
 export interface IdeasOptions {
   file?: string;
-  interactive?: boolean;
   dryRun?: boolean;
   cwd?: string;
+  verbose?: boolean;
 }
 
 export async function readStdin(): Promise<string> {
@@ -47,6 +47,13 @@ export async function readFile(filePath: string): Promise<string> {
   }
 }
 
+/**
+ * Check if stdin has data available (piped input).
+ */
+function hasStdinInput(): boolean {
+  return !process.stdin.isTTY;
+}
+
 export async function ideasCommand(
   options: IdeasOptions,
   logger: Logger,
@@ -54,45 +61,43 @@ export async function ideasCommand(
 ): Promise<void> {
   const root = findRootFromOptions(options);
 
-  let input: string;
+  let ideas: Awaited<ReturnType<typeof parseIdeasWithAgent>> = [];
+  
+  // Determine input mode
   if (inputOverride !== undefined) {
-    input = inputOverride;
+    // Direct input override (for testing)
+    logger.info("Parsing ideas with agent...");
+    ideas = await parseIdeasWithAgent(inputOverride, root, { verbose: options.verbose });
   } else if (options.file) {
-    input = await readFile(options.file);
-  } else if (options.interactive) {
-    // Prompt for idea interactively
-    const title = await text({
-      message: "Give your idea a short title",
-      placeholder: "e.g., Add dark mode support",
-      validate: (v) => (!v?.trim() ? "Title is required" : undefined),
-    });
-
-    if (isCancel(title)) {
-      logger.info("Cancelled.");
+    // File input
+    const input = await readFile(options.file);
+    logger.info("Parsing ideas with agent...");
+    ideas = await parseIdeasWithAgent(input, root, { verbose: options.verbose });
+  } else if (hasStdinInput()) {
+    // Piped stdin input
+    const input = await readStdin();
+    if (!input.trim()) {
+      console.log("No input provided");
       return;
     }
-
-    const description = await text({
-      message: "Optional: describe what you want to accomplish",
-      placeholder: "Press Enter to skip",
-    });
-
-    if (isCancel(description)) {
-      logger.info("Cancelled.");
-      return;
-    }
-
-    const titleStr = String(title).trim();
-    const descStr = description ? String(description).trim() : "";
-
-    input = descStr ? `# ${titleStr}\n\n${descStr}\n` : `# ${titleStr}\n`;
+    logger.info("Parsing ideas with agent...");
+    ideas = await parseIdeasWithAgent(input, root, { verbose: options.verbose });
   } else {
-    input = await readStdin();
+    // No input and TTY - start interview mode
+    try {
+      ideas = await runIdeaInterview(root, { verbose: options.verbose });
+    } catch (error) {
+      // Fall back to simple interview if SDK fails
+      if (options.verbose) {
+        logger.warn(`SDK interview failed: ${error}`);
+        logger.info("Falling back to simple interview mode...");
+      }
+      ideas = await runSimpleInterview();
+    }
   }
 
+  // Handle dry run
   if (options.dryRun) {
-    logger.info("Parsing ideas with agent...");
-    const ideas = await parseIdeasWithAgent(input, root);
     if (ideas.length === 0) {
       console.log("No items would be created");
       return;
@@ -108,8 +113,12 @@ export async function ideasCommand(
     return;
   }
 
-  logger.info("Parsing ideas with agent...");
-  const ideas = await parseIdeasWithAgent(input, root);
+  // Persist the ideas
+  if (ideas.length === 0) {
+    console.log("No items created");
+    return;
+  }
+
   const result = await persistItems(root, ideas);
 
   if (result.created.length === 0 && result.skipped.length === 0) {

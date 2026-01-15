@@ -29,7 +29,7 @@ Implement the user stories for this item.
 3. Ensure all acceptance criteria are met
 4. Run relevant tests and quality checks
 5. Commit changes with a descriptive message
-6. Update the story status to "done" in prd.json
+6. Call the `update_story_status` tool with the story ID and status "done"
 7. Append learnings/notes to {{item_path}}/progress.log
 8. Repeat for remaining stories
 

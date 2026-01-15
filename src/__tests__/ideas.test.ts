@@ -17,7 +17,7 @@ describe("parseIdeasFromText", () => {
     const result = parseIdeasFromText("Add dark mode");
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Add dark mode");
-    expect(result[0].overview).toBe("");
+    expect(result[0].description).toBe("");
   });
 
   it("multiple lines become multiple ideas", () => {
@@ -47,13 +47,13 @@ describe("parseIdeasFromText", () => {
     expect(result).toHaveLength(3);
   });
 
-  it("consecutive lines become title + overview", () => {
+  it("consecutive lines become title + description", () => {
     const result = parseIdeasFromText(
       "# Add dark mode\nAllow users to toggle between themes\nThis is important for accessibility"
     );
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Add dark mode");
-    expect(result[0].overview).toBe(
+    expect(result[0].description).toBe(
       "Allow users to toggle between themes\nThis is important for accessibility"
     );
   });
@@ -71,9 +71,9 @@ The login page times out after 30 seconds
     const result = parseIdeasFromText(input);
     expect(result).toHaveLength(4);
     expect(result[0].title).toBe("Add dark mode support");
-    expect(result[0].overview).toBe("Allow users to toggle between light and dark themes");
+    expect(result[0].description).toBe("Allow users to toggle between light and dark themes");
     expect(result[1].title).toBe("Fix login timeout");
-    expect(result[1].overview).toBe("The login page times out after 30 seconds");
+    expect(result[1].description).toBe("The login page times out after 30 seconds");
     expect(result[2].title).toBe("Update CI to use Node 20");
     expect(result[3].title).toBe("Add unit tests for auth module");
   });
@@ -163,7 +163,7 @@ describe("createItemFromIdea", () => {
   it("creates valid Item with correct fields", () => {
     const idea: ParsedIdea = {
       title: "Add dark mode",
-      overview: "Allow users to toggle themes",
+      description: "Allow users to toggle themes",
     };
 
     const item = createItemFromIdea("001-add-dark-mode", idea);
@@ -177,7 +177,7 @@ describe("createItemFromIdea", () => {
   it("state is 'raw'", () => {
     const item = createItemFromIdea("001-test", {
       title: "Test",
-      overview: "",
+      description: "",
     });
     expect(item.state).toBe("raw");
   });
@@ -186,7 +186,7 @@ describe("createItemFromIdea", () => {
     const before = new Date().toISOString();
     const item = createItemFromIdea("001-test", {
       title: "Test",
-      overview: "",
+      description: "",
     });
     const after = new Date().toISOString();
 
@@ -200,13 +200,50 @@ describe("createItemFromIdea", () => {
   it("nullable fields are null", () => {
     const item = createItemFromIdea("001-test", {
       title: "Test",
-      overview: "",
+      description: "",
     });
 
     expect(item.branch).toBeNull();
     expect(item.pr_url).toBeNull();
     expect(item.pr_number).toBeNull();
     expect(item.last_error).toBeNull();
+  });
+
+  it("builds rich overview from structured fields", () => {
+    const idea: ParsedIdea = {
+      title: "Improve auth errors",
+      description: "Show better error messages during login",
+      problemStatement: "Users see vague 'Something went wrong' errors",
+      motivation: "Reduce support tickets",
+      successCriteria: ["Specific error messages for common failures"],
+      technicalConstraints: ["Don't change the API contract"],
+      scope: {
+        inScope: ["Web login flow"],
+        outOfScope: ["Mobile app"],
+      },
+      priorityHint: "high",
+      urgencyHint: "Before Q3 launch",
+    };
+
+    const item = createItemFromIdea("001-improve-auth-errors", idea);
+
+    expect(item.overview).toContain("Users see vague");
+    expect(item.overview).toContain("Reduce support tickets");
+    expect(item.overview).toContain("Specific error messages");
+    expect(item.overview).toContain("Don't change the API contract");
+    expect(item.overview).toContain("Web login flow");
+    expect(item.overview).toContain("Mobile app");
+    expect(item.overview).toContain("priority: high");
+
+    // Structured fields are also stored
+    expect(item.problem_statement).toBe("Users see vague 'Something went wrong' errors");
+    expect(item.motivation).toBe("Reduce support tickets");
+    expect(item.success_criteria).toEqual(["Specific error messages for common failures"]);
+    expect(item.technical_constraints).toEqual(["Don't change the API contract"]);
+    expect(item.scope_in_scope).toEqual(["Web login flow"]);
+    expect(item.scope_out_of_scope).toEqual(["Mobile app"]);
+    expect(item.priority_hint).toBe("high");
+    expect(item.urgency_hint).toBe("Before Q3 launch");
   });
 });
 
@@ -223,7 +260,7 @@ describe("persistItems", () => {
   });
 
   it("creates directories and item.json", async () => {
-    const ideas: ParsedIdea[] = [{ title: "Add dark mode", overview: "Theme support" }];
+    const ideas: ParsedIdea[] = [{ title: "Add dark mode", description: "Theme support" }];
 
     const result = await persistItems(tempDir, ideas);
 
@@ -247,7 +284,7 @@ describe("persistItems", () => {
     const itemsDir = path.join(tempDir, ".wreckit", "items");
     await fs.mkdir(path.join(itemsDir, "001-add-dark-mode"), { recursive: true });
 
-    const ideas: ParsedIdea[] = [{ title: "Add dark mode", overview: "" }];
+    const ideas: ParsedIdea[] = [{ title: "Add dark mode", description: "" }];
     const result = await persistItems(tempDir, ideas);
 
     expect(result.created).toHaveLength(0);
@@ -256,8 +293,8 @@ describe("persistItems", () => {
 
   it("returns created and skipped lists", async () => {
     const ideas: ParsedIdea[] = [
-      { title: "First feature", overview: "" },
-      { title: "Second feature", overview: "" },
+      { title: "First feature", description: "" },
+      { title: "Second feature", description: "" },
     ];
 
     const result = await persistItems(tempDir, ideas);
@@ -270,9 +307,9 @@ describe("persistItems", () => {
 
   it("creates items in items folder", async () => {
     const ideas: ParsedIdea[] = [
-      { title: "Add feature", overview: "" },
-      { title: "Fix bug", overview: "" },
-      { title: "Update CI", overview: "" },
+      { title: "Add feature", description: "" },
+      { title: "Fix bug", description: "" },
+      { title: "Update CI", description: "" },
     ];
 
     const result = await persistItems(tempDir, ideas);

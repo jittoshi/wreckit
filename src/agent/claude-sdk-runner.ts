@@ -26,10 +26,14 @@ export async function runClaudeSdkAgent(options: RunAgentOptions, config: AgentC
 
     // Build SDK options
     const sdkOptions: any = {
+      cwd, // Working directory
       permissionMode: "bypassPermissions", // wreckit runs autonomously
+      allowDangerouslySkipPermissions: true, // Required for bypassPermissions
       abortController, // Enable cancellation on TUI quit/signals
       // Use custom tools if specified, otherwise use default tools
       ...(config.sdk_tools && { allowedTools: config.sdk_tools }),
+      // Pass MCP servers if provided
+      ...(options.mcpServers && { mcpServers: options.mcpServers }),
     };
 
     // Add optional SDK configuration
@@ -41,7 +45,7 @@ export async function runClaudeSdkAgent(options: RunAgentOptions, config: AgentC
     }
 
     // Run the agent via SDK
-    for await (const message of query(prompt, sdkOptions)) {
+    for await (const message of query({ prompt, options: sdkOptions })) {
       if (timedOut) break;
 
       // Convert SDK message to output string
@@ -186,8 +190,9 @@ function handleSdkError(error: any, output: string, logger: Logger): { success: 
 
 function formatSdkMessage(message: any): string {
   // Handle assistant messages (Claude's reasoning and tool calls)
-  if (message.type === "assistant" || message.constructor?.name === "AssistantMessage") {
-    return message.content?.map((block: any) => {
+  if (message.type === "assistant") {
+    const content = message.message?.content || message.content || [];
+    return content.map((block: any) => {
       if (block.type === "text") return block.text;
       if (block.type === "tool_use") {
         const toolName = block.name;
@@ -199,18 +204,19 @@ function formatSdkMessage(message: any): string {
   }
 
   // Handle tool result messages
-  if (message.type === "tool_result" || message.constructor?.name === "ToolResultMessage") {
+  if (message.type === "tool_result") {
     const result = message.result || message.content || "";
     return `\n\`\`\`result\n${result}\n\`\`\`\n`;
   }
 
-  // Handle final result messages
-  if (message.type === "result" || message.constructor?.name === "ResultMessage") {
-    return `\n✅ ${message.subtype || "Complete"}\n`;
+  // Handle final result messages - capture the actual result text
+  if (message.type === "result") {
+    // The 'result' field contains the final text output
+    return message.result || "";
   }
 
   // Handle error messages
-  if (message.type === "error" || message.constructor?.name === "ErrorMessage") {
+  if (message.type === "error") {
     return `\n❌ Error: ${message.message || String(message)}\n`;
   }
 
@@ -219,9 +225,10 @@ function formatSdkMessage(message: any): string {
 
 function emitAgentEventsFromSdkMessage(message: any, emit: (event: AgentEvent) => void): void {
   // Handle assistant messages (Claude's reasoning and tool calls)
-  if (message.type === "assistant" || message.constructor?.name === "AssistantMessage") {
-    if (message.content && Array.isArray(message.content)) {
-      for (const block of message.content) {
+  if (message.type === "assistant") {
+    const content = message.message?.content || message.content || [];
+    if (Array.isArray(content)) {
+      for (const block of content) {
         if (block.type === "text" && block.text) {
           emit({ type: "assistant_text", text: block.text });
         }

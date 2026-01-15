@@ -110,7 +110,7 @@ describe("initCommand", () => {
 
     expect(content).toContain("# Planning Phase");
     expect(content).toContain("{{research}}");
-    expect(content).toContain("prd.json");
+    expect(content).toContain("save_prd");
   });
 
   it("creates implement.md prompt template", async () => {

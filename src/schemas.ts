@@ -30,6 +30,8 @@ export const ConfigSchema = z.object({
   timeout_seconds: z.number().default(3600),
 });
 
+export const PriorityHintSchema = z.enum(["low", "medium", "high", "critical"]);
+
 export const ItemSchema = z.object({
   schema_version: z.number(),
   id: z.string(),
@@ -43,6 +45,16 @@ export const ItemSchema = z.object({
   last_error: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+
+  // Structured context fields for richer research/planning
+  problem_statement: z.string().optional(),
+  motivation: z.string().optional(),
+  success_criteria: z.array(z.string()).optional(),
+  technical_constraints: z.array(z.string()).optional(),
+  scope_in_scope: z.array(z.string()).optional(),
+  scope_out_of_scope: z.array(z.string()).optional(),
+  priority_hint: PriorityHintSchema.optional(),
+  urgency_hint: z.string().optional(),
 });
 
 export const StorySchema = z.object({
@@ -77,6 +89,7 @@ export type WorkflowState = z.infer<typeof WorkflowStateSchema>;
 export type StoryStatus = z.infer<typeof StoryStatusSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 export type Item = z.infer<typeof ItemSchema>;
+export type PriorityHint = z.infer<typeof PriorityHintSchema>;
 export type Story = z.infer<typeof StorySchema>;
 export type Prd = z.infer<typeof PrdSchema>;
 export type IndexItem = z.infer<typeof IndexItemSchema>;

@@ -82,6 +82,7 @@ export interface RunAgentOptions {
   onStdoutChunk?: (chunk: string) => void;
   onStderrChunk?: (chunk: string) => void;
   onAgentEvent?: (event: AgentEvent) => void;
+  mcpServers?: Record<string, unknown>;
 }
 
 export function getAgentConfig(config: ConfigResolved): AgentConfig {

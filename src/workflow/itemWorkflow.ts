@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { Item, Prd, WorkflowState } from "../schemas";
+import type { Item, Prd, WorkflowState, StoryStatus } from "../schemas";
 import { PrdSchema } from "../schemas";
 import type { ConfigResolved } from "../config";
 import type { Logger } from "../logging";
@@ -21,6 +21,7 @@ import {
 } from "../fs/paths";
 import { pathExists } from "../fs/util";
 import { readItem, writeItem, readPrd, writePrd } from "../fs/json";
+import { createWreckitMcpServer } from "../agent/mcp/wreckitMcpServer";
 import {
   loadPromptTemplate,
   renderPrompt,
@@ -283,6 +284,14 @@ export async function runPhasePlan(
   const itemDir = getItemDir(root, item.id);
   const agentConfig = getAgentConfig(config);
 
+  // Create MCP server to capture PRD via tool call
+  let capturedPrd: Prd | null = null;
+  const wreckitServer = createWreckitMcpServer({
+    onSavePrd: (prd) => {
+      capturedPrd = prd;
+    },
+  });
+
   const result = await runAgent({
     config: agentConfig,
     cwd: itemDir,
@@ -293,6 +302,7 @@ export async function runPhasePlan(
     onStdoutChunk: onAgentOutput,
     onStderrChunk: onAgentOutput,
     onAgentEvent,
+    mcpServers: { wreckit: wreckitServer },
   });
 
   if (dryRun) {
@@ -321,6 +331,13 @@ export async function runPhasePlan(
     return { success: false, item, error };
   }
 
+  // If PRD was captured via MCP tool, write it to disk
+  if (capturedPrd) {
+    await writePrd(itemDir, capturedPrd);
+    logger.info(`PRD saved via MCP tool with ${capturedPrd.user_stories.length} stories`);
+  }
+
+  // Check if prd.json exists (from MCP or direct file write)
   if (!(await pathExists(prdPath))) {
     const error = "Agent did not create prd.json";
     item = { ...item, last_error: error };
@@ -439,6 +456,14 @@ export async function runPhaseImplement(
     const variables = await buildPromptVariables(root, item, config);
     const prompt = renderPrompt(template, variables);
 
+    // Create MCP server to capture story status updates
+    const storyUpdates: Array<{ storyId: string; status: StoryStatus }> = [];
+    const wreckitServer = createWreckitMcpServer({
+      onUpdateStoryStatus: (storyId, status) => {
+        storyUpdates.push({ storyId, status });
+      },
+    });
+
     const agentConfig = getAgentConfig(config);
     const result = await runAgent({
       config: agentConfig,
@@ -450,6 +475,7 @@ export async function runPhaseImplement(
       onStdoutChunk: onAgentOutput,
       onStderrChunk: onAgentOutput,
       onAgentEvent,
+      mcpServers: { wreckit: wreckitServer },
     });
 
     if (dryRun) {
@@ -463,6 +489,18 @@ export async function runPhaseImplement(
       item = { ...item, last_error: error };
       await saveItem(root, item);
       return { success: false, item, error };
+    }
+
+    // Apply story status updates captured via MCP
+    if (storyUpdates.length > 0 && prd) {
+      for (const update of storyUpdates) {
+        const story = prd.user_stories.find((s) => s.id === update.storyId);
+        if (story) {
+          story.status = update.status;
+          logger.info(`Story ${update.storyId} marked as '${update.status}' via MCP`);
+        }
+      }
+      await writePrd(itemDir, prd);
     }
 
     prd = await loadPrdSafe(itemDir);

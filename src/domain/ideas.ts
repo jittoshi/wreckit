@@ -1,13 +1,112 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { Item } from "../schemas";
+import type { Item, PriorityHint } from "../schemas";
 import { getItemsDir, getItemDir } from "../fs/paths";
 import { writeJsonPretty } from "../fs/json";
 
 export interface ParsedIdea {
+  /** Short, human-readable summary of the idea */
   title: string;
-  overview: string;
+
+  /**
+   * High-level description of what this idea is about.
+   * 1–3 sentences combining what + why at a glance.
+   */
+  description: string;
+
+  /** Clear articulation of the problem to solve or question to answer */
+  problemStatement?: string;
+
+  /** Why this matters / motivation / business or developer value */
+  motivation?: string;
+
+  /**
+   * Concrete signals of "done" as expressed by the user.
+   */
+  successCriteria?: string[];
+
+  /**
+   * Any technical hints or constraints explicitly mentioned.
+   */
+  technicalConstraints?: string[];
+
+  /**
+   * Scope hints for what is explicitly in / out.
+   */
+  scope?: {
+    inScope?: string[];
+    outOfScope?: string[];
+  };
+
+  /**
+   * Coarse priority/urgency signal extracted from wording.
+   */
+  priorityHint?: PriorityHint;
+
+  /**
+   * Free-form urgency notes (deadlines, "ASAP", "nice to have later", etc.)
+   */
+  urgencyHint?: string;
+
+  /**
+   * Optional hint for where this idea belongs (e.g. "frontend", "infra").
+   */
   suggestedSection?: string;
+
+  /**
+   * @deprecated Use `description` instead. Kept for backwards compatibility.
+   */
+  overview?: string;
+}
+
+/**
+ * Build a rich overview string from structured ParsedIdea fields.
+ * This becomes the item.overview used by research/planning phases.
+ */
+export function buildOverviewFromParsedIdea(idea: ParsedIdea): string {
+  const lines: string[] = [];
+
+  const base = idea.problemStatement || idea.description || idea.overview || "";
+  if (base) lines.push(base.trim());
+
+  if (idea.motivation) {
+    lines.push("");
+    lines.push(`**Motivation:** ${idea.motivation.trim()}`);
+  }
+
+  if (idea.successCriteria?.length) {
+    lines.push("");
+    lines.push("**Success criteria:**");
+    for (const c of idea.successCriteria) lines.push(`- ${c}`);
+  }
+
+  if (idea.technicalConstraints?.length) {
+    lines.push("");
+    lines.push("**Technical constraints:**");
+    for (const c of idea.technicalConstraints) lines.push(`- ${c}`);
+  }
+
+  if (idea.scope?.inScope?.length || idea.scope?.outOfScope?.length) {
+    lines.push("");
+    if (idea.scope.inScope?.length) {
+      lines.push("**In scope:**");
+      for (const s of idea.scope.inScope) lines.push(`- ${s}`);
+    }
+    if (idea.scope.outOfScope?.length) {
+      lines.push("**Out of scope:**");
+      for (const s of idea.scope.outOfScope) lines.push(`- ${s}`);
+    }
+  }
+
+  if (idea.priorityHint || idea.urgencyHint) {
+    lines.push("");
+    const bits: string[] = [];
+    if (idea.priorityHint) bits.push(`priority: ${idea.priorityHint}`);
+    if (idea.urgencyHint) bits.push(`urgency: ${idea.urgencyHint}`);
+    lines.push(`**Signals:** ${bits.join(", ")}`);
+  }
+
+  return lines.join("\n").trim();
 }
 
 export function parseIdeasFromText(text: string): ParsedIdea[] {
@@ -15,16 +114,18 @@ export function parseIdeasFromText(text: string): ParsedIdea[] {
   const lines = text.split("\n");
 
   let currentTitle: string | null = null;
-  let currentOverview: string[] = [];
+  let currentDescription: string[] = [];
 
   const flushCurrent = () => {
     if (currentTitle) {
+      const desc = currentDescription.join("\n").trim();
       ideas.push({
         title: currentTitle,
-        overview: currentOverview.join("\n").trim(),
+        description: desc,
+        overview: desc, // backwards compat
       });
       currentTitle = null;
-      currentOverview = [];
+      currentDescription = [];
     }
   };
 
@@ -48,16 +149,18 @@ export function parseIdeasFromText(text: string): ParsedIdea[] {
       flushCurrent();
       ideas.push({
         title: bulletMatch[1].trim(),
+        description: "",
         overview: "",
       });
       continue;
     }
 
     if (currentTitle) {
-      currentOverview.push(trimmed);
+      currentDescription.push(trimmed);
     } else {
       ideas.push({
         title: trimmed,
+        description: "",
         overview: "",
       });
     }
@@ -114,19 +217,31 @@ export function createItemFromIdea(
   idea: ParsedIdea
 ): Item {
   const now = new Date().toISOString();
+  const overview = buildOverviewFromParsedIdea(idea);
 
   return {
     schema_version: 1,
     id,
     title: idea.title,
+    section: idea.suggestedSection,
     state: "raw",
-    overview: idea.overview,
+    overview,
     branch: null,
     pr_url: null,
     pr_number: null,
     last_error: null,
     created_at: now,
     updated_at: now,
+
+    // Structured context fields
+    problem_statement: idea.problemStatement,
+    motivation: idea.motivation,
+    success_criteria: idea.successCriteria,
+    technical_constraints: idea.technicalConstraints,
+    scope_in_scope: idea.scope?.inScope,
+    scope_out_of_scope: idea.scope?.outOfScope,
+    priority_hint: idea.priorityHint,
+    urgency_hint: idea.urgencyHint,
   };
 }
 
