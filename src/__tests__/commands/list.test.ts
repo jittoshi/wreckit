@@ -139,9 +139,9 @@ describe("listCommand", () => {
     await listCommand({}, logger);
 
     const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
-    expect(calls.some((c) => /^\s*1\s+raw\s+first/.test(c))).toBe(true);
-    expect(calls.some((c) => /^\s*2\s+raw\s+second/.test(c))).toBe(true);
-    expect(calls.some((c) => /^\s*3\s+raw\s+third/.test(c))).toBe(true);
+    expect(calls.some((c) => /^\s*1\s+idea\s+first/.test(c))).toBe(true);
+    expect(calls.some((c) => /^\s*2\s+idea\s+second/.test(c))).toBe(true);
+    expect(calls.some((c) => /^\s*3\s+idea\s+third/.test(c))).toBe(true);
 
     consoleSpy.mockRestore();
   });

@@ -157,7 +157,7 @@ describe("showCommand", () => {
     const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
     expect(calls.some((c) => c.includes("ID: 001-test"))).toBe(true);
     expect(calls.some((c) => c.includes("Title: Test Feature"))).toBe(true);
-    expect(calls.some((c) => c.includes("State: raw"))).toBe(true);
+    expect(calls.some((c) => c.includes("State: idea"))).toBe(true);
     expect(calls.some((c) => c.includes("Overview: A test feature"))).toBe(true);
     consoleSpy.mockRestore();
   });
