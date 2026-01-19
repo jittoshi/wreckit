@@ -6,7 +6,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { loadPromptTemplate } from "../prompts";
 import type { ParsedIdea } from "./ideas";
-import { createWreckitMcpServer } from "../agent/mcp/wreckitMcpServer";
+import { createIdeasMcpServer } from "../agent/mcp/ideasMcpServer";
 import { buildSdkEnv } from "../agent/env";
 import { createLogger } from "../logging";
 import { hasUncommittedChanges, isGitRepo } from "../git";
@@ -186,8 +186,9 @@ async function finishInterview(
   const extractSpinner = createSpinner("Extracting ideas...");
   extractSpinner.start();
 
+  // Use ideas-only MCP server to reduce blast radius (Gap 2 mitigation)
   let capturedIdeas: ParsedIdea[] = [];
-  const wreckitServer = createWreckitMcpServer({
+  const ideasServer = createIdeasMcpServer({
     onInterviewIdeas: (ideas) => {
       capturedIdeas = ideas;
     },
@@ -205,9 +206,10 @@ async function finishInterview(
         resume: sessionId,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
-        mcpServers: { wreckit: wreckitServer },
+        mcpServers: { wreckit: ideasServer },
         // CRITICAL: Only allow the MCP tool - prevent agent from using Read, Write, Bash, etc.
         // This ensures the agent can ONLY extract structured data, not implement fixes
+        // Using ideas-only server (Gap 2 mitigation) reduces blast radius
         allowedTools: ["mcp__wreckit__save_interview_ideas"],
         // Pass environment for custom credentials
         env: sdkEnv,

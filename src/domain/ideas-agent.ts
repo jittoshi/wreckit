@@ -4,7 +4,7 @@ import { logger } from "../logging";
 import { loadPromptTemplate } from "../prompts";
 import type { AgentEvent } from "../tui/agentEvents";
 import type { ParsedIdea } from "./ideas";
-import { createWreckitMcpServer } from "../agent/mcp/wreckitMcpServer";
+import { createIdeasMcpServer } from "../agent/mcp/ideasMcpServer";
 import { assertPayloadLimits } from "./validation";
 
 export interface ParseIdeasOptions {
@@ -43,8 +43,9 @@ export async function parseIdeasWithAgent(
   const config = getAgentConfig(resolvedConfig);
 
   // Capture ideas via MCP tool call
+  // Use ideas-only MCP server to reduce blast radius (Gap 2 mitigation)
   let capturedIdeas: ParsedIdea[] = [];
-  const wreckitServer = createWreckitMcpServer({
+  const ideasServer = createIdeasMcpServer({
     onParsedIdeas: (ideas) => {
       capturedIdeas = ideas;
     },
@@ -52,12 +53,14 @@ export async function parseIdeasWithAgent(
 
   // CRITICAL: Only allow the MCP tool - prevent agent from using Read, Write, Bash, etc.
   // This ensures the agent can ONLY extract structured ideas, not implement fixes
+  // Using ideas-only server (Gap 2 mitigation) reduces blast radius by not registering
+  // tools from other phases (save_prd, update_story_status)
   const result = await runAgent({
     cwd: root,
     prompt,
     config,
     logger,
-    mcpServers: { wreckit: wreckitServer },
+    mcpServers: { wreckit: ideasServer },
     allowedTools: ["mcp__wreckit__save_parsed_ideas"],
     onStdoutChunk: (chunk: string) => {
       if (options.verbose) {
