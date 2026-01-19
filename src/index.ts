@@ -121,34 +121,6 @@ program
    });
 
 program
-   .command("idea")
-   .description("Add a new idea via AI interview")
-   .option("-f, --file <path>", "Read idea from file instead of interactive prompt")
-   .action(async (options, cmd) => {
-     const globalOpts = cmd.optsWithGlobals();
-     await executeCommand(
-       async () => {
-         await ideasCommand(
-           {
-             file: options.file,
-             dryRun: globalOpts.dryRun,
-             cwd: resolveCwd(globalOpts.cwd),
-             verbose: globalOpts.verbose,
-           },
-           logger
-         );
-       },
-       logger,
-       {
-         verbose: globalOpts.verbose,
-         quiet: globalOpts.quiet,
-         dryRun: globalOpts.dryRun,
-         cwd: resolveCwd(globalOpts.cwd),
-       }
-     );
-   });
-
-program
   .command("status")
   .description("List all items with state")
   .option("--json", "Output as JSON")

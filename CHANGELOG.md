@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- Removed duplicate `idea` CLI command. Use `wreckit ideas` instead.
+  - The `idea` command was identical to `ideas` and caused confusion
+  - All functionality is preserved in the `ideas` command
+  - `ideas` supports file input (`-f`), stdin, and interactive interview mode
+
 ## [1.0.0] - 2025-01-13
 
 ### Major Changes
