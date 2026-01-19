@@ -569,6 +569,11 @@ export async function runPhaseImplement(
       `Implementing story ${currentStory.id} (iteration ${iteration}/${maxIterations})`
     );
 
+    // Capture git status before running agent for scope enforcement (Gap 2)
+    const beforeStatus: GitFileChange[] = dryRun || mockAgent
+      ? []
+      : await getGitStatus({ cwd: root, logger });
+
     const template = await loadPromptTemplate(root, "implement");
     const variables = await buildPromptVariables(root, item, config);
     const prompt = renderPrompt(template, variables);
@@ -608,6 +613,31 @@ export async function runPhaseImplement(
       return { success: false, item, error };
     }
 
+    // Enforce story scope: check for scope creep via git status comparison (Gap 2)
+    // Allow all paths during implementation (no strict containment), but log warnings
+    // This is a softer check than research/plan phases - we're detecting scope creep, not enforcing strict containment
+    const compareOptions: StatusCompareOptions = {
+      cwd: root,
+      logger,
+      // For implement phase, we allow all paths but track changes for scope awareness
+      // This is different from research/plan where we enforce strict read-only/design-only
+      allowedPaths: undefined,
+    };
+
+    const comparison = await compareGitStatus(beforeStatus, compareOptions);
+    if (comparison.allChanges.length > 0) {
+      const changedFiles = comparison.allChanges.map(c => `${c.statusCode} ${c.path}`).join(", ");
+      logger.info(`Story ${currentStory.id} changed ${comparison.allChanges.length} file(s): ${changedFiles}`);
+
+      // If there are any changes to the wreckit metadata or config files outside the item directory, warn about scope creep
+      const wreckitSystemPaths = comparison.allChanges.filter(c =>
+        c.path.startsWith(".wreckit/") && !c.path.startsWith(`.wreckit/items/${item.id}/`)
+      );
+      if (wreckitSystemPaths.length > 0) {
+        logger.warn(`Story ${currentStory.id} modified wreckit system files: ${wreckitSystemPaths.map(c => c.path).join(", ")}`);
+      }
+    }
+
     // Apply story status updates captured via MCP
     if (storyUpdates.length > 0 && prd) {
       for (const update of storyUpdates) {
@@ -643,7 +673,7 @@ export async function runPhaseImplement(
 
   // Clear story when implementation completes
   onStoryChanged?.(null);
-  
+
   item = await loadItem(root, itemId);
   item = { ...item, last_error: null };
   await saveItem(root, item);

@@ -684,7 +684,7 @@ export async function compareGitStatus(
  * @param phase - Phase name for error message (default: "research")
  * @returns Formatted error message
  */
-export function formatViolations(result: GitStatusComparisonResult, phase: 'research' | 'plan' = 'research'): string {
+export function formatViolations(result: GitStatusComparisonResult, phase: 'research' | 'plan' | 'implement' = 'research'): string {
   if (result.valid) {
     return '';
   }
@@ -694,8 +694,11 @@ export function formatViolations(result: GitStatusComparisonResult, phase: 'rese
   if (phase === 'research') {
     lines.push('Research phase detected unauthorized file modifications:');
     lines.push('');
-  } else {
+  } else if (phase === 'plan') {
     lines.push('Plan phase detected unauthorized file modifications:');
+    lines.push('');
+  } else {
+    lines.push('Implement phase detected scope creep:');
     lines.push('');
   }
 
@@ -709,9 +712,13 @@ export function formatViolations(result: GitStatusComparisonResult, phase: 'rese
   if (phase === 'research') {
     lines.push('The research phase must be read-only. Only research.md may be created.');
     lines.push('Any code changes should be made during the implementation phase.');
-  } else {
+  } else if (phase === 'plan') {
     lines.push('The plan phase must be design-only. Only plan.md and prd.json may be created.');
     lines.push('Any code changes should be made during the implementation phase.');
+  } else {
+    lines.push('The implementation phase is scoped to the current story.');
+    lines.push('Changes outside of story-related files may indicate scope creep.');
+    lines.push('Please review the changes and ensure they align with the story acceptance criteria.');
   }
 
   return lines.join('\n');

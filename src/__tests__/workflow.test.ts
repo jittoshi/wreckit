@@ -980,6 +980,239 @@ None.
       expect(result.success).toBe(false);
       expect(result.error).toContain("timed out");
     });
+
+    describe("scope tracking (Gap 2)", () => {
+      it("logs file changes during story implementation", async () => {
+        const prd = createTestPrd();
+        const item = createTestItem({ state: "planned" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "prd.json"),
+          JSON.stringify(prd, null, 2),
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        mockedRunAgent.mockImplementation(async () => {
+          // Create source file changes
+          await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
+          await fs.writeFile(path.join(tempDir, "src", "feature.ts"), "export const feature = true;", "utf-8");
+          // Update PRD to mark story as done
+          const prdPath = path.join(itemDir, "prd.json");
+          const currentPrd = JSON.parse(await fs.readFile(prdPath, "utf-8")) as Prd;
+          currentPrd.user_stories[0].status = "done";
+          await fs.writeFile(prdPath, JSON.stringify(currentPrd, null, 2), "utf-8");
+          return {
+            success: true,
+            output: "test output",
+            timedOut: false,
+            exitCode: 0,
+            completionDetected: true,
+          };
+        });
+
+        const result = await runPhaseImplement(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(true);
+        // Verify that file changes were logged
+        const infoCalls = mockLogger.info.mock.calls;
+        const logEntry = infoCalls.find((call: string[]) => call[0]?.includes("changed") && call[0]?.includes("file"));
+        expect(logEntry).toBeDefined();
+        expect(logEntry[0]).toContain("US-001");
+        expect(logEntry[0]).toContain("changed");
+      });
+
+      it("warns when story modifies wreckit system files", async () => {
+        const prd = createTestPrd();
+        const item = createTestItem({ state: "planned" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "prd.json"),
+          JSON.stringify(prd, null, 2),
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        mockedRunAgent.mockImplementation(async () => {
+          // Modify wreckit system file (config.json at root level)
+          await fs.writeFile(path.join(tempDir, ".wreckit", "config.json"), '{ "modified": true }', "utf-8");
+          // Update PRD to mark story as done
+          const prdPath = path.join(itemDir, "prd.json");
+          const currentPrd = JSON.parse(await fs.readFile(prdPath, "utf-8")) as Prd;
+          currentPrd.user_stories[0].status = "done";
+          await fs.writeFile(prdPath, JSON.stringify(currentPrd, null, 2), "utf-8");
+          return {
+            success: true,
+            output: "test output",
+            timedOut: false,
+            exitCode: 0,
+            completionDetected: true,
+          };
+        });
+
+        const result = await runPhaseImplement(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(true);
+        // Verify that warning was logged for wreckit system file modification
+        const warnCalls = mockLogger.warn.mock.calls;
+        const warnEntry = warnCalls.find((call: string[]) => call[0]?.includes("wreckit system files"));
+        expect(warnEntry).toBeDefined();
+        expect(warnEntry[0]).toContain("US-001");
+        expect(warnEntry[0]).toContain("wreckit system files");
+      });
+
+      it("does not warn for changes within item directory", async () => {
+        const prd = createTestPrd();
+        const item = createTestItem({ state: "planned" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "prd.json"),
+          JSON.stringify(prd, null, 2),
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        mockedRunAgent.mockImplementation(async () => {
+          // Create file within item directory (allowed)
+          await fs.writeFile(path.join(itemDir, "notes.md"), "# Story notes", "utf-8");
+          // Update PRD to mark story as done
+          const prdPath = path.join(itemDir, "prd.json");
+          const currentPrd = JSON.parse(await fs.readFile(prdPath, "utf-8")) as Prd;
+          currentPrd.user_stories[0].status = "done";
+          await fs.writeFile(prdPath, JSON.stringify(currentPrd, null, 2), "utf-8");
+          return {
+            success: true,
+            output: "test output",
+            timedOut: false,
+            exitCode: 0,
+            completionDetected: true,
+          };
+        });
+
+        const result = await runPhaseImplement(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(true);
+        // Verify no warning for wreckit system files (changes are within item directory)
+        const warnCalls = mockLogger.warn.mock.calls;
+        const warnEntry = warnCalls.find((call: string[]) => call[0]?.includes("wreckit system files"));
+        expect(warnEntry).toBeUndefined();
+      });
+
+      it("skips scope tracking in mockAgent mode", async () => {
+        const prd = createTestPrd();
+        const item = createTestItem({ state: "planned" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "prd.json"),
+          JSON.stringify(prd, null, 2),
+          "utf-8"
+        );
+
+        // Initialize git repo
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        // Mock agent to do nothing (simulating mockAgent mode behavior)
+        mockedRunAgent.mockResolvedValue({
+          success: true,
+          output: "test output",
+          timedOut: false,
+          exitCode: 0,
+          completionDetected: true,
+        });
+
+        const result = await runPhaseImplement(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+          mockAgent: true,
+        });
+
+        expect(result.success).toBe(true);
+        // In mockAgent mode, git status tracking should be skipped (no "changed" logs)
+        const infoCalls = mockLogger.info.mock.calls;
+        const logEntry = infoCalls.find((call: string[]) => call[0]?.includes("changed") && call[0]?.includes("file"));
+        expect(logEntry).toBeUndefined();
+      });
+
+      it("skips scope tracking in dryRun mode", async () => {
+        const prd = createTestPrd();
+        const item = createTestItem({ state: "planned" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "prd.json"),
+          JSON.stringify(prd, null, 2),
+          "utf-8"
+        );
+
+        // Initialize git repo
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        // Mock agent to do nothing
+        mockedRunAgent.mockResolvedValue({
+          success: true,
+          output: "test output",
+          timedOut: false,
+          exitCode: 0,
+          completionDetected: true,
+        });
+
+        const result = await runPhaseImplement(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+        // In dryRun mode, git status tracking should be skipped (no "changed" logs)
+        const infoCalls = mockLogger.info.mock.calls;
+        const logEntry = infoCalls.find((call: string[]) => call[0]?.includes("changed") && call[0]?.includes("file"));
+        expect(logEntry).toBeUndefined();
+      });
+    });
   });
 
   describe("runPhasePr", () => {
