@@ -233,3 +233,224 @@ export function assertPayloadLimits(ideas: ParsedIdea[]): void {
     throw new (require("../errors").PayloadValidationError)(message);
   }
 }
+
+/**
+ * Options for research quality validation as specified in 002-research-phase.md
+ */
+export interface ResearchQualityOptions {
+  /** Minimum number of file:line citations required (default: 5) */
+  minCitations: number;
+  /** Minimum length of Summary section in characters (default: 100) */
+  minSummaryLength: number;
+  /** Minimum length of Current State Analysis section in characters (default: 150) */
+  minAnalysisLength: number;
+  /** Required section headers (case-insensitive matching) */
+  requiredSections: string[];
+}
+
+/**
+ * Result of research quality validation
+ */
+export interface ResearchQualityResult {
+  /** Whether the research document passes quality checks */
+  valid: boolean;
+  /** Number of file:line citations found */
+  citations: number;
+  /** Length of Summary section in characters */
+  summaryLength: number;
+  /** Length of Current State Analysis section in characters */
+  analysisLength: number;
+  /** Required sections that are missing */
+  missingSections: string[];
+  /** Array of validation error messages */
+  errors: string[];
+}
+
+/**
+ * Default options for research quality validation.
+ * Based on 002-research-phase.md quality requirements.
+ */
+export const DEFAULT_RESEARCH_QUALITY_OPTIONS: ResearchQualityOptions = {
+  minCitations: 5,
+  minSummaryLength: 100,
+  minAnalysisLength: 150,
+  requiredSections: [
+    "Header",
+    "Research Question",
+    "Summary",
+    "Current State Analysis",
+    "Key Files",
+    "Technical Considerations",
+    "Risks and Mitigations",
+    "Recommended Approach",
+    "Open Questions",
+  ],
+};
+
+/**
+ * Count file:line citations in text.
+ * Matches patterns like:
+ * - src/file.ts:42
+ * - src/file.ts:42-50 (range)
+ * - path/to/file.ext:123
+ *
+ * @param text - Text to search for citations
+ * @returns Number of citations found
+ */
+function countCitations(text: string): number {
+  // Match file paths followed by : and line numbers
+  // Pattern: path/to/file.ext:line or path/to/file.ext:start-end
+  const citationPattern = /\b[\w./-]+\.[\w-]+:\d+(?:-\d+)?\b/g;
+  const matches = text.match(citationPattern);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Extract content between two section headers.
+ *
+ * @param content - Full document content
+ * @param startSection - Section name to start from (inclusive)
+ * @param endSection - Section name to end at (exclusive)
+ * @returns Content between sections, or empty string if not found
+ */
+function extractSectionContent(
+  content: string,
+  startSection: string,
+  endSection?: string
+): string {
+  const lines = content.split("\n");
+  let inSection = false;
+  const sectionContent: string[] = [];
+
+  // Normalize section names for comparison (case-insensitive, remove # prefix)
+  const normalizeSection = (section: string) =>
+    section.replace(/^#+\s*/, "").toLowerCase().trim();
+
+  const normalizedStart = normalizeSection(startSection);
+  const normalizedEnd = endSection ? normalizeSection(endSection) : null;
+
+  for (const line of lines) {
+    const normalizedLine = normalizeSection(line);
+
+    // Check if this is a section header
+    if (line.match(/^#+\s/) && normalizedLine) {
+      if (!inSection && normalizedLine === normalizedStart) {
+        inSection = true;
+        continue; // Skip the header line itself
+      } else if (inSection) {
+        // We've hit the next section
+        if (normalizedEnd && normalizedLine === normalizedEnd) {
+          break;
+        }
+        // If we don't have a specific end section, any ## level section ends our content
+        if (!normalizedEnd) {
+          break;
+        }
+      }
+    }
+
+    if (inSection) {
+      sectionContent.push(line);
+    }
+  }
+
+  return sectionContent.join("\n").trim();
+}
+
+/**
+ * Check which required sections are present in the document.
+ *
+ * @param content - Research document content
+ * @param requiredSections - List of required section names
+ * @returns Array of missing section names
+ */
+function findMissingSections(content: string, requiredSections: string[]): string[] {
+  const missing: string[] = [];
+  const normalizedContent = content.toLowerCase();
+
+  for (const section of requiredSections) {
+    // Check for section header (## Section Name or # Section Name)
+    const pattern = new RegExp(`^#+\\s*${section.toLowerCase()}\\s*$`, "m");
+    if (!pattern.test(normalizedContent)) {
+      missing.push(section);
+    }
+  }
+
+  return missing;
+}
+
+/**
+ * Validate research document quality according to 002-research-phase.md requirements.
+ *
+ * This function checks:
+ * 1. Required sections are present (Header, Research Question, Summary, etc.)
+ * 2. Minimum citation density (file:line references)
+ * 3. Minimum content length for key sections
+ *
+ * Per the spec:
+ * - "At least 5-10 `file:line` references"
+ * - "Summary and analysis sections have substantive content"
+ * - "Required sections present"
+ *
+ * @param content - Research document content (markdown)
+ * @param options - Validation options (uses defaults if not provided)
+ * @returns Validation result with details
+ */
+export function validateResearchQuality(
+  content: string,
+  options: Partial<ResearchQualityOptions> = {}
+): ResearchQualityResult {
+  const opts: ResearchQualityOptions = {
+    ...DEFAULT_RESEARCH_QUALITY_OPTIONS,
+    ...options,
+  };
+
+  const errors: string[] = [];
+
+  // Check for required sections
+  const missingSections = findMissingSections(content, opts.requiredSections);
+  if (missingSections.length > 0) {
+    errors.push(`Missing required sections: ${missingSections.join(", ")}`);
+  }
+
+  // Extract and validate Summary section
+  const summaryContent = extractSectionContent(content, "Summary", "Current State Analysis");
+  const summaryLength = summaryContent.length;
+
+  // Extract and validate Current State Analysis section
+  const analysisContent = extractSectionContent(content, "Current State Analysis", "Key Files");
+  const analysisLength = analysisContent.length;
+
+  // Count citations in the entire document
+  const citations = countCitations(content);
+
+  // Validate citation density
+  if (citations < opts.minCitations) {
+    errors.push(
+      `Insufficient citations: found ${citations}, required at least ${opts.minCitations} file:line references`
+    );
+  }
+
+  // Validate summary length
+  if (summaryLength < opts.minSummaryLength) {
+    errors.push(
+      `Summary section too short: ${summaryLength} characters, required at least ${opts.minSummaryLength}`
+    );
+  }
+
+  // Validate analysis length
+  if (analysisLength < opts.minAnalysisLength) {
+    errors.push(
+      `Current State Analysis section too short: ${analysisLength} characters, required at least ${opts.minAnalysisLength}`
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    citations,
+    summaryLength,
+    analysisLength,
+    missingSections,
+    errors,
+  };
+}

@@ -17,6 +17,10 @@ export {
   validateTransition,
   allStoriesDone,
   hasPendingStories,
+  validateResearchQuality,
+  type ResearchQualityOptions,
+  type ResearchQualityResult,
+  DEFAULT_RESEARCH_QUALITY_OPTIONS,
 } from "./validation";
 
 export {
