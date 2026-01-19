@@ -681,17 +681,23 @@ export async function compareGitStatus(
  * Format violations into a human-readable error message
  *
  * @param result - Comparison result with violations
+ * @param phase - Phase name for error message (default: "research")
  * @returns Formatted error message
  */
-export function formatViolations(result: GitStatusComparisonResult): string {
+export function formatViolations(result: GitStatusComparisonResult, phase: 'research' | 'plan' = 'research'): string {
   if (result.valid) {
     return '';
   }
 
-  const lines: string[] = [
-    'Research phase detected unauthorized file modifications:',
-    '',
-  ];
+  const lines: string[] = [];
+
+  if (phase === 'research') {
+    lines.push('Research phase detected unauthorized file modifications:');
+    lines.push('');
+  } else {
+    lines.push('Plan phase detected unauthorized file modifications:');
+    lines.push('');
+  }
 
   for (const violation of result.violations) {
     const statusDesc = getStatusDescription(violation.statusCode);
@@ -699,8 +705,14 @@ export function formatViolations(result: GitStatusComparisonResult): string {
   }
 
   lines.push('');
-  lines.push('The research phase must be read-only. Only research.md may be created.');
-  lines.push('Any code changes should be made during the implementation phase.');
+
+  if (phase === 'research') {
+    lines.push('The research phase must be read-only. Only research.md may be created.');
+    lines.push('Any code changes should be made during the implementation phase.');
+  } else {
+    lines.push('The plan phase must be design-only. Only plan.md and prd.json may be created.');
+    lines.push('Any code changes should be made during the implementation phase.');
+  }
 
   return lines.join('\n');
 }

@@ -544,6 +544,185 @@ None.
       expect(result.success).toBe(false);
       expect(result.error).toContain("prd.json");
     });
+
+    describe("write containment enforcement (Gap 1)", () => {
+      it("fails when agent modifies source files during planning", async () => {
+        const item = createTestItem({ state: "researched" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "research.md"),
+          "# Research",
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        const prd = createTestPrd();
+        const wreckitPath = `.wreckit/items/${item.id}`;
+
+        mockedRunAgent.mockImplementation(async () => {
+          // Create allowed files in item directory
+          await fs.mkdir(path.join(tempDir, wreckitPath), { recursive: true });
+          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), "# Plan", "utf-8");
+          await fs.writeFile(path.join(tempDir, wreckitPath, "prd.json"), JSON.stringify(prd, null, 2), "utf-8");
+          // Create unauthorized file outside item directory
+          await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
+          await fs.writeFile(path.join(tempDir, "src", "unauthorized.ts"), "console.log('unauthorized');", "utf-8");
+          return {
+            success: true,
+            output: "test output",
+            timedOut: false,
+            exitCode: 0,
+            completionDetected: true,
+          };
+        });
+
+        const result = await runPhasePlan(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("unauthorized");
+        expect(result.error).toContain("src/");
+        expect(result.error).toContain("plan phase");
+      });
+
+      it("fails when agent creates files outside item directory", async () => {
+        const item = createTestItem({ state: "researched" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "research.md"),
+          "# Research",
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        const prd = createTestPrd();
+        const wreckitPath = `.wreckit/items/${item.id}`;
+
+        mockedRunAgent.mockImplementation(async () => {
+          // Create allowed files in item directory
+          await fs.mkdir(path.join(tempDir, wreckitPath), { recursive: true });
+          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), "# Plan", "utf-8");
+          await fs.writeFile(path.join(tempDir, wreckitPath, "prd.json"), JSON.stringify(prd, null, 2), "utf-8");
+          // Create unauthorized config file at repo root
+          await fs.writeFile(path.join(tempDir, "config.json"), '{ "setting": "value" }', "utf-8");
+          return {
+            success: true,
+            output: "test output",
+            timedOut: false,
+            exitCode: 0,
+            completionDetected: true,
+          };
+        });
+
+        const result = await runPhasePlan(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("unauthorized");
+        expect(result.error).toContain("config.json");
+        expect(result.error).toContain("plan phase");
+      });
+
+      it("succeeds when agent only writes allowed files (plan.md and prd.json)", async () => {
+        const item = createTestItem({ state: "researched" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "research.md"),
+          "# Research",
+          "utf-8"
+        );
+
+        // Initialize git repo for status comparison
+        const { spawnSync } = require("node:child_process");
+        spawnSync("git", ["init"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.name", "Test"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["add", "."], { cwd: tempDir, stdio: "ignore" });
+        spawnSync("git", ["commit", "-m", "initial"], { cwd: tempDir, stdio: "ignore" });
+
+        const prd = createTestPrd();
+        mockedRunAgent.mockImplementation(
+          createMockAgentResult(
+            {
+              createFiles: {
+                "plan.md": "# Plan",
+                "prd.json": JSON.stringify(prd, null, 2),
+              },
+            },
+            itemDir
+          )
+        );
+
+        const result = await runPhasePlan(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.item.state).toBe("planned");
+      });
+
+      it("skips write containment check in dryRun mode", async () => {
+        const item = createTestItem({ state: "researched" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "research.md"),
+          "# Research",
+          "utf-8"
+        );
+
+        // dryRun returns early without running any checks, so agent doesn't need to create files
+        const result = await runPhasePlan(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+          dryRun: true,
+        });
+
+        expect(result.success).toBe(true);
+      });
+
+      it("skips write containment check in mockAgent mode", async () => {
+        const item = createTestItem({ state: "researched" });
+        const itemDir = await setupItem(item);
+        await fs.writeFile(
+          path.join(itemDir, "research.md"),
+          "# Research",
+          "utf-8"
+        );
+
+        const result = await runPhasePlan(item.id, {
+          root: tempDir,
+          config,
+          logger: mockLogger,
+          mockAgent: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.item.state).toBe("planned");
+      });
+    });
   });
 
   describe("runPhaseImplement", () => {

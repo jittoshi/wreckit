@@ -337,6 +337,11 @@ export async function runPhasePlan(
   const itemDir = getItemDir(root, item.id);
   const agentConfig = getAgentConfig(config);
 
+  // Capture git status before running agent for design-only enforcement
+  const beforeStatus: GitFileChange[] = dryRun || mockAgent
+    ? []
+    : await getGitStatus({ cwd: root, logger });
+
   // Create MCP server to capture PRD via tool call
   let capturedPrd: Prd | null = null;
   const wreckitServer = createWreckitMcpServer({
@@ -401,6 +406,26 @@ export async function runPhasePlan(
   const prd = await loadPrdSafe(itemDir);
   if (!prd) {
     const error = "prd.json is not valid JSON or fails schema validation";
+    item = { ...item, last_error: error };
+    await saveItem(root, item);
+    return { success: false, item, error };
+  }
+
+  // Enforce design-only behavior: check for unauthorized file modifications (Gap 1)
+  const allowedPlanPaths = [
+    `.wreckit/items/${item.id}/plan.md`,
+    `.wreckit/items/${item.id}/prd.json`,
+  ];
+  const compareOptions: StatusCompareOptions = {
+    cwd: root,
+    logger,
+    allowedPaths: allowedPlanPaths,
+  };
+
+  const comparison = await compareGitStatus(beforeStatus, compareOptions);
+  if (!comparison.valid) {
+    const error = formatViolations(comparison, 'plan');
+    logger.error(error);
     item = { ...item, last_error: error };
     await saveItem(root, item);
     return { success: false, item, error };
