@@ -6,6 +6,8 @@ import type { Item, Prd } from "../schemas";
 import type { ConfigResolved } from "../config";
 import type { Logger } from "../logging";
 import type { AgentResult } from "../agent/runner";
+// Import real git module for passthrough in mock
+import * as gitModule from "../git";
 
 const mockedRunAgent = vi.fn();
 const mockedGetAgentConfig = vi.fn((config: ConfigResolved) => ({
@@ -51,6 +53,20 @@ mock.module("../git", () => ({
   checkGitPreflight: mockedCheckGitPreflight,
   isGitRepo: mockedIsGitRepo,
   getCurrentBranch: mockedGetCurrentBranch,
+  // Pass through real implementations for functions used by git-status-comparison.test.ts
+  compareGitStatus: gitModule.compareGitStatus,
+  getGitStatus: gitModule.getGitStatus,
+  parseGitStatusPorcelain: gitModule.parseGitStatusPorcelain,
+  formatViolations: gitModule.formatViolations,
+  // Also pass through other functions that might be imported
+  runGitCommand: gitModule.runGitCommand,
+  runGhCommand: gitModule.runGhCommand,
+  branchExists: gitModule.branchExists,
+  getPrByBranch: gitModule.getPrByBranch,
+  isDetachedHead: gitModule.isDetachedHead,
+  hasRemote: gitModule.hasRemote,
+  getBranchSyncStatus: gitModule.getBranchSyncStatus,
+  mergeAndPushToBase: gitModule.mergeAndPushToBase,
 }));
 
 const {
@@ -266,9 +282,77 @@ describe("workflow", () => {
       const item = createTestItem({ state: "idea" });
       const itemDir = await setupItem(item);
 
+      const validResearchContent = `# Research: Test Feature
+
+**Date**: 2025-01-19
+**Item**: 001-test-feature
+
+## Research Question
+How should we implement this test feature?
+
+## Summary
+
+This feature requires adding a new endpoint to the API and updating the frontend to display the new data. The current architecture uses a RESTful API pattern with TypeScript throughout.
+
+The backend is organized around services in \`src/services/\`, with routing handled in \`src/index.ts\`. Frontend components are in \`src/components/\`. State management uses a custom hook pattern.
+
+## Current State Analysis
+
+The main entry point is at \`src/index.ts:42\` where the app is initialized. Routes are registered at \`src/routes/index.ts:15-30\`.
+
+The service layer follows a pattern established in \`src/services/userService.ts:1-100\` which can serve as a template for the new feature service.
+
+Database models are defined in \`src/models/index.ts:1-50\` using TypeScript interfaces.
+
+Frontend components are organized in \`src/components/\` with the main app at \`src/App.tsx:10\`.
+
+State management is handled by custom hooks in \`src/hooks/\`, see \`src/hooks/useData.ts:1-50\`.
+
+API integration uses \`src/api/client.ts:20-40\`.
+
+## Key Files
+
+- \`src/index.ts:42\` - Main application entry
+- \`src/routes/index.ts:15-30\` - Route registration
+- \`src/services/userService.ts:1-100\` - Example service implementation
+- \`src/models/index.ts:1-50\` - Database models
+- \`src/App.tsx:10\` - Frontend app root
+
+## Technical Considerations
+
+The project uses:
+- Express.js for backend routing
+- TypeScript for type safety
+- React for frontend
+- Custom hooks for state management
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Breaking existing API | High | Add versioning to new endpoints |
+| Frontend state issues | Medium | Follow existing hook patterns |
+| Database migration | Medium | Use incremental migration scripts |
+
+## Recommended Approach
+
+1. Create new service in \`src/services/testFeatureService.ts\` following the pattern from \`userService.ts\`
+2. Add routes in \`src/routes/\` and register in \`src/routes/index.ts\`
+3. Update database models in \`src/models/index.ts\`
+4. Create frontend components in \`src/components/testFeature/\`
+5. Add custom hook in \`src/hooks/useTestFeature.ts\`
+6. Integrate API calls using \`src/api/client.ts\`
+
+## Open Questions
+
+- Should the new endpoint use authentication? Current auth is at \`src/middleware/auth.ts:10-30\`
+- Do we need database migrations or can we add columns directly?
+- Should we add tests for the new service immediately?
+`;
+
       mockedRunAgent.mockImplementation(
         createMockAgentResult(
-          { createFiles: { "research.md": "# Research Results" } },
+          { createFiles: { "research.md": validResearchContent } },
           itemDir
         )
       );
@@ -313,6 +397,58 @@ describe("workflow", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("research.md");
+    });
+
+    it("fails when research.md has insufficient quality (Gap 2)", async () => {
+      const item = createTestItem({ state: "idea" });
+      const itemDir = await setupItem(item);
+
+      const poorResearchContent = `# Research
+
+## Research Question
+How to add feature?
+
+## Summary
+Add a feature.
+
+## Current State Analysis
+The app exists.
+
+## Key Files
+Some files.
+
+## Technical Considerations
+Use TypeScript.
+
+## Risks and Mitigations
+| Risk | Mitigation |
+|------|------------|
+| Bugs | Tests |
+
+## Recommended Approach
+Write code.
+
+## Open Questions
+None.
+`;
+
+      mockedRunAgent.mockImplementation(
+        createMockAgentResult(
+          { createFiles: { "research.md": poorResearchContent } },
+          itemDir
+        )
+      );
+
+      const result = await runPhaseResearch(item.id, {
+        root: tempDir,
+        config,
+        logger: mockLogger,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Research quality validation failed");
+      // Should fail due to insufficient citations and short summary
+      expect(result.error).toMatch(/citation|Summary/);
     });
   });
 

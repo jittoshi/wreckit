@@ -10,6 +10,7 @@ import {
   validateTransition,
   allStoriesDone,
   hasPendingStories,
+  validateResearchQuality,
 } from "../domain/validation";
 import { getNextState } from "../domain/states";
 import {
@@ -240,6 +241,23 @@ export async function runPhaseResearch(
     await saveItem(root, item);
     return { success: false, item, error };
   }
+
+  // Validate research document quality (Gap 2: Research Quality Validation)
+  const researchContent = await fs.readFile(researchPath, "utf-8");
+  const qualityResult = validateResearchQuality(researchContent);
+
+  if (!qualityResult.valid) {
+    const error = `Research quality validation failed:\n${qualityResult.errors.join("\n")}`;
+    logger.error(error);
+    item = { ...item, last_error: error };
+    await saveItem(root, item);
+    return { success: false, item, error };
+  }
+
+  logger.info(
+    `Research quality validation passed: ${qualityResult.citations} citations, ` +
+    `${qualityResult.summaryLength} char summary, ${qualityResult.analysisLength} char analysis`
+  );
 
   // Enforce read-only behavior: check for unauthorized file modifications
   const allowedResearchPath = `.wreckit/items/${item.id}/research.md`;

@@ -369,6 +369,15 @@ function findMissingSections(content: string, requiredSections: string[]): strin
   const normalizedContent = content.toLowerCase();
 
   for (const section of requiredSections) {
+    // Special case: "Header" checks for any top-level heading (# Title)
+    if (section.toLowerCase() === "header") {
+      const hasHeader = /^#\s+\S.*/m.test(content);
+      if (!hasHeader) {
+        missing.push(section);
+      }
+      continue;
+    }
+
     // Check for section header (## Section Name or # Section Name)
     const pattern = new RegExp(`^#+\\s*${section.toLowerCase()}\\s*$`, "m");
     if (!pattern.test(normalizedContent)) {
