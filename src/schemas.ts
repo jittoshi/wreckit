@@ -67,7 +67,7 @@ export const StorySchema = z.object({
 });
 
 export const PrdSchema = z.object({
-  schema_version: z.number(),
+  schema_version: z.literal(1),
   id: z.string(),
   branch_name: z.string(),
   user_stories: z.array(StorySchema),
