@@ -463,3 +463,147 @@ export function validateResearchQuality(
     errors,
   };
 }
+
+/**
+ * Options for plan quality validation as specified in 003-plan-phase.md
+ */
+export interface PlanQualityOptions {
+  /** Required section headers (case-insensitive matching) */
+  requiredSections: string[];
+  /** Minimum number of phases required in the plan (default: 1) */
+  minPhases: number;
+}
+
+/**
+ * Result of plan quality validation
+ */
+export interface PlanQualityResult {
+  /** Whether the plan document passes quality checks */
+  valid: boolean;
+  /** Number of implementation phases found */
+  phases: number;
+  /** Required sections that are missing */
+  missingSections: string[];
+  /** Array of validation error messages */
+  errors: string[];
+}
+
+/**
+ * Default options for plan quality validation.
+ * Based on 003-plan-phase.md quality requirements.
+ */
+export const DEFAULT_PLAN_QUALITY_OPTIONS: PlanQualityOptions = {
+  minPhases: 1,
+  requiredSections: [
+    "Header",
+    "Implementation Plan Title",
+    "Overview",
+    "Current State",
+    "Desired End State",
+    "What We're NOT Doing",
+    "Implementation Approach",
+    "Phases",
+    "Testing Strategy",
+  ],
+};
+
+/**
+ * Count the number of implementation phases in the plan.
+ * Looks for ### (level 3) headers under the "Phases" section.
+ *
+ * @param content - Plan document content
+ * @returns Number of phases found
+ */
+function countPhases(content: string): number {
+  // Find the Phases section
+  const phasesSection = extractSectionContent(content, "Phases", "Testing Strategy");
+  if (!phasesSection) {
+    return 0;
+  }
+
+  // Count ### headers (phase headers)
+  const phaseHeaderRegex = /^###\s+\S.*/gm;
+  const matches = phasesSection.match(phaseHeaderRegex);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Check which required sections are present in the plan document.
+ *
+ * @param content - Plan document content
+ * @param requiredSections - List of required section names
+ * @returns Array of missing section names
+ */
+function findMissingPlanSections(content: string, requiredSections: string[]): string[] {
+  const missing: string[] = [];
+  const normalizedContent = content.toLowerCase();
+
+  for (const section of requiredSections) {
+    // Special case: "Header" checks for any top-level heading (# Title)
+    if (section.toLowerCase() === "header") {
+      const hasHeader = /^#\s+\S.*/m.test(content);
+      if (!hasHeader) {
+        missing.push(section);
+      }
+      continue;
+    }
+
+    // Check for section header (## Section Name or # Section Name)
+    const pattern = new RegExp(`^#+\\s*${section.toLowerCase()}\\s*$`, "m");
+    if (!pattern.test(normalizedContent)) {
+      missing.push(section);
+    }
+  }
+
+  return missing;
+}
+
+/**
+ * Validate plan document quality according to 003-plan-phase.md requirements.
+ *
+ * This function checks:
+ * 1. Required sections are present (Header, Overview, Current State, etc.)
+ * 2. Minimum number of implementation phases
+ *
+ * Per the spec:
+ * - "Required sections present"
+ * - "Phased approach: Logical ordering with dependencies"
+ *
+ * @param content - Plan document content (markdown)
+ * @param options - Validation options (uses defaults if not provided)
+ * @returns Validation result with details
+ */
+export function validatePlanQuality(
+  content: string,
+  options: Partial<PlanQualityOptions> = {}
+): PlanQualityResult {
+  const opts: PlanQualityOptions = {
+    ...DEFAULT_PLAN_QUALITY_OPTIONS,
+    ...options,
+  };
+
+  const errors: string[] = [];
+
+  // Check for required sections
+  const missingSections = findMissingPlanSections(content, opts.requiredSections);
+  if (missingSections.length > 0) {
+    errors.push(`Missing required sections: ${missingSections.join(", ")}`);
+  }
+
+  // Count implementation phases
+  const phases = countPhases(content);
+
+  // Validate minimum phases
+  if (phases < opts.minPhases) {
+    errors.push(
+      `Insufficient implementation phases: found ${phases}, required at least ${opts.minPhases}`
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    phases,
+    missingSections,
+    errors,
+  };
+}

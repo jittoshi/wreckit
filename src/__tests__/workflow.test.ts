@@ -140,6 +140,37 @@ function createTestPrd(overrides: Partial<Prd> = {}): Prd {
   };
 }
 
+function createTestPlanContent(): string {
+  return `# Implementation Plan: Test Feature
+
+## Implementation Plan Title
+Test Feature Implementation
+
+## Overview
+This plan describes the implementation of a test feature.
+
+## Current State
+The feature does not currently exist in the system.
+
+## Desired End State
+The feature will be fully implemented and tested.
+
+## What We're NOT Doing
+We are not implementing any additional features beyond the core requirements.
+
+## Implementation Approach
+We will implement the feature using TypeScript following the project's existing patterns.
+
+## Phases
+
+### Phase 1: Core Implementation
+Implement the core functionality of the feature.
+
+## Testing Strategy
+We will use unit tests and integration tests to verify the implementation.
+`;
+}
+
 interface MockAgentBehavior {
   createFiles?: Record<string, string>;
   updatePrd?: (prd: Prd) => Prd;
@@ -467,7 +498,7 @@ None.
         createMockAgentResult(
           {
             createFiles: {
-              "plan.md": "# Plan",
+              "plan.md": createTestPlanContent(),
               "prd.json": JSON.stringify(prd, null, 2),
             },
           },
@@ -532,7 +563,7 @@ None.
       );
 
       mockedRunAgent.mockImplementation(
-        createMockAgentResult({ createFiles: { "plan.md": "# Plan" } }, itemDir)
+        createMockAgentResult({ createFiles: { "plan.md": createTestPlanContent() } }, itemDir)
       );
 
       const result = await runPhasePlan(item.id, {
@@ -569,7 +600,7 @@ None.
         mockedRunAgent.mockImplementation(async () => {
           // Create allowed files in item directory
           await fs.mkdir(path.join(tempDir, wreckitPath), { recursive: true });
-          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), "# Plan", "utf-8");
+          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), createTestPlanContent(), "utf-8");
           await fs.writeFile(path.join(tempDir, wreckitPath, "prd.json"), JSON.stringify(prd, null, 2), "utf-8");
           // Create unauthorized file outside item directory
           await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
@@ -618,7 +649,7 @@ None.
         mockedRunAgent.mockImplementation(async () => {
           // Create allowed files in item directory
           await fs.mkdir(path.join(tempDir, wreckitPath), { recursive: true });
-          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), "# Plan", "utf-8");
+          await fs.writeFile(path.join(tempDir, wreckitPath, "plan.md"), createTestPlanContent(), "utf-8");
           await fs.writeFile(path.join(tempDir, wreckitPath, "prd.json"), JSON.stringify(prd, null, 2), "utf-8");
           // Create unauthorized config file at repo root
           await fs.writeFile(path.join(tempDir, "config.json"), '{ "setting": "value" }', "utf-8");
@@ -665,7 +696,7 @@ None.
           createMockAgentResult(
             {
               createFiles: {
-                "plan.md": "# Plan",
+                "plan.md": createTestPlanContent(),
                 "prd.json": JSON.stringify(prd, null, 2),
               },
             },

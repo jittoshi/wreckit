@@ -11,6 +11,7 @@ import {
   allStoriesDone,
   hasPendingStories,
   validateResearchQuality,
+  validatePlanQuality,
 } from "../domain/validation";
 import { getNextState } from "../domain/states";
 import {
@@ -388,6 +389,22 @@ export async function runPhasePlan(
     await saveItem(root, item);
     return { success: false, item, error };
   }
+
+  // Validate plan document quality (Gap 2: Plan Content Quality Validation)
+  const planContent = await fs.readFile(planPath, "utf-8");
+  const planQualityResult = validatePlanQuality(planContent);
+
+  if (!planQualityResult.valid) {
+    const error = `Plan quality validation failed:\n${planQualityResult.errors.join("\n")}`;
+    logger.error(error);
+    item = { ...item, last_error: error };
+    await saveItem(root, item);
+    return { success: false, item, error };
+  }
+
+  logger.info(
+    `Plan quality validation passed: ${planQualityResult.phases} implementation phase(s)`
+  );
 
   // If PRD was captured via MCP tool, write it to disk
   if (capturedPrd) {
