@@ -44,6 +44,10 @@ const mockedIsGitRepo = vi.fn(() => Promise.resolve(true));
 const mockedGetCurrentBranch = vi.fn(() => Promise.resolve("wreckit/001-test-feature"));
 const mockedGetBranchSha = vi.fn(() => Promise.resolve("abc123"));
 const mockedMergeAndPushToBase = vi.fn(() => Promise.resolve());
+const mockedCheckMergeConflicts = vi.fn(() => Promise.resolve({ hasConflicts: false }));
+const mockedCheckPrMergeability = vi.fn(() => Promise.resolve({ mergeable: true, determined: true }));
+const mockedValidateRemoteUrl = vi.fn(() => Promise.resolve({ valid: true, actualUrl: "https://github.com/example/repo", errors: [] }));
+const mockedRunPrePushQualityGates = vi.fn(() => Promise.resolve({ success: true, errors: [], skipped: [] }));
 
 mock.module("../git", () => ({
   ensureBranch: mockedEnsureBranch,
@@ -57,13 +61,16 @@ mock.module("../git", () => ({
   getCurrentBranch: mockedGetCurrentBranch,
   getBranchSha: mockedGetBranchSha,
   mergeAndPushToBase: mockedMergeAndPushToBase,
+  checkMergeConflicts: mockedCheckMergeConflicts,
+  checkPrMergeability: mockedCheckPrMergeability,
+  validateRemoteUrl: mockedValidateRemoteUrl,
+  runPrePushQualityGates: mockedRunPrePushQualityGates,
   // Pass through real implementations for functions used by git-status-comparison.test.ts and quality.test.ts
   compareGitStatus: gitModule.compareGitStatus,
   getGitStatus: gitModule.getGitStatus,
   parseGitStatusPorcelain: gitModule.parseGitStatusPorcelain,
   formatViolations: gitModule.formatViolations,
   // Pass through quality module for quality.test.ts - these will pass with default empty config
-  runPrePushQualityGates: gitModule.runPrePushQualityGates,
   runQualityChecks: gitModule.runQualityChecks,
   runSecretScan: gitModule.runSecretScan,
   scanForSecrets: gitModule.scanForSecrets,

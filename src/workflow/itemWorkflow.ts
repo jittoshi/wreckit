@@ -43,6 +43,7 @@ import {
   getCurrentBranch,
   getBranchSha,
   mergeAndPushToBase,
+  checkMergeConflicts,
   getGitStatus,
   compareGitStatus,
   formatViolations,
@@ -901,6 +902,25 @@ export async function runPhasePr(
       "DIRECT MERGE MODE ENABLED: This bypasses PR review, CI checks, " +
       "and branch protections. Only use for greenfield projects with no production risk."
     );
+
+    // Check for merge conflicts before attempting merge (Gap 5: Conflict Pre-Check)
+    // This prevents leaving the repo in an inconsistent state if merge fails
+    if (!dryRun) {
+      const conflictCheck = await checkMergeConflicts(
+        config.base_branch,
+        branchResult.branchName,
+        gitOptions
+      );
+
+      if (conflictCheck.hasConflicts) {
+        const error = conflictCheck.error ?? "Merge conflict detected";
+        item = { ...item, last_error: error };
+        await saveItem(root, item);
+        return { success: false, item, error };
+      }
+
+      logger.info("No merge conflicts detected, proceeding with direct merge");
+    }
 
     // Create rollback anchor before merge (Gap 4: Rollback Anchors)
     let rollbackSha: string | null = null;

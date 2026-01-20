@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { Logger } from "../../logging";
-import { checkPrMergeability } from "../../git/index";
+import { checkPrMergeability, checkMergeConflicts } from "../../git/index";
 
 function createMockLogger(): Logger {
   return {
@@ -135,6 +135,38 @@ describe("git/index", () => {
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("[dry-run]"));
       // In dryRun mode, runGhCommand should not be called
       expect(runGhCommandSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("checkMergeConflicts", () => {
+    it("returns no conflicts in dryRun mode", async () => {
+      const result = await checkMergeConflicts("main", "feature-branch", {
+        cwd: tempDir,
+        logger: mockLogger,
+        dryRun: true,
+      });
+
+      expect(result.hasConflicts).toBe(false);
+      // In dry run, error is not set
+      expect(result.error).toBeUndefined();
+    });
+
+    it("returns correct result structure", async () => {
+      const result = await checkMergeConflicts("main", "feature-branch", {
+        cwd: tempDir,
+        logger: mockLogger,
+        dryRun: true,
+      });
+
+      // Verify result structure
+      expect(result).toHaveProperty("hasConflicts");
+      expect(typeof result.hasConflicts).toBe("boolean");
+      // error is optional and may be undefined
+      if ("error" in result) {
+        if (result.error !== undefined) {
+          expect(typeof result.error).toBe("string");
+        }
+      }
     });
   });
 });

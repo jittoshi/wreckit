@@ -611,6 +611,99 @@ export async function createOrUpdatePr(
   return { url: prInfo.url, number: prInfo.number, created: true };
 }
 
+/**
+ * Result of merge conflict check
+ */
+export interface MergeConflictCheckResult {
+  /** Whether the merge can be completed without conflicts */
+  hasConflicts: boolean;
+  /** Error message if conflicts detected */
+  error?: string;
+}
+
+/**
+ * Check if merging featureBranch into baseBranch would cause conflicts
+ *
+ * This performs a dry-run merge to detect conflicts before actually merging.
+ * If conflicts are detected, the merge state is aborted and the original branch is restored.
+ *
+ * @param baseBranch - The target branch to merge into
+ * @param featureBranch - The source branch to merge from
+ * @param options - Git options
+ * @returns Result indicating if conflicts were detected
+ */
+export async function checkMergeConflicts(
+  baseBranch: string,
+  featureBranch: string,
+  options: GitOptions
+): Promise<MergeConflictCheckResult> {
+  const { logger, dryRun = false } = options;
+
+  if (dryRun) {
+    logger.info(`[dry-run] Would check for merge conflicts`);
+    return { hasConflicts: false };
+  }
+
+  // Get current branch to restore later
+  const currentBranchResult = await runGitCommand(
+    ["rev-parse", "--abbrev-ref", "HEAD"],
+    options
+  );
+  const originalBranch = currentBranchResult.stdout;
+
+  try {
+    // Switch to base branch
+    const checkoutResult = await runGitCommand(["checkout", baseBranch], options);
+    if (checkoutResult.exitCode !== 0) {
+      return {
+        hasConflicts: true,
+        error: `Failed to checkout base branch ${baseBranch} for conflict check`,
+      };
+    }
+
+    // Pull latest changes from remote
+    const pullResult = await runGitCommand(["pull", "--ff-only"], options);
+    if (pullResult.exitCode !== 0) {
+      return {
+        hasConflicts: true,
+        error: `Failed to pull latest ${baseBranch}. Branch may be out of sync with remote.`,
+      };
+    }
+
+    // Try a no-commit merge to detect conflicts
+    // --no-ff ensures a merge commit even if fast-forward is possible
+    // --no-commit performs the merge but doesn't commit, allowing us to check for conflicts
+    const testMergeResult = await runGitCommand(
+      ["merge", "--no-commit", "--no-ff", featureBranch],
+      options
+    );
+
+    // Check for conflict markers in the working directory
+    const statusResult = await runGitCommand(["status", "--porcelain"], options);
+    const hasConflictMarkers = statusResult.stdout.includes("U") ||
+                               statusResult.stdout.includes("AA") ||
+                               statusResult.stdout.includes("UU");
+
+    // Abort the test merge regardless of result
+    await runGitCommand(["merge", "--abort"], options);
+
+    if (testMergeResult.exitCode !== 0 || hasConflictMarkers) {
+      return {
+        hasConflicts: true,
+        error: `Merge conflict detected: ${featureBranch} cannot be cleanly merged into ${baseBranch}. ` +
+               `Please resolve conflicts manually or rebase the feature branch.`,
+      };
+    }
+
+    return { hasConflicts: false };
+  } finally {
+    // Always restore original branch
+    if (originalBranch && originalBranch !== "HEAD") {
+      await runGitCommand(["checkout", originalBranch], options);
+    }
+  }
+}
+
 export async function mergeAndPushToBase(
   baseBranch: string,
   featureBranch: string,
