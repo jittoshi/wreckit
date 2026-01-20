@@ -5,7 +5,7 @@ import { PrdSchema } from "../schemas";
 import type { ConfigResolved } from "../config";
 import type { Logger } from "../logging";
 import type { AgentEvent } from "../tui/agentEvents";
-import type { ValidationContext } from "../domain/validation";
+import type { ValidationContext, StoryCompletionVerification } from "../domain/validation";
 import {
   validateTransition,
   allStoriesDone,
@@ -53,6 +53,7 @@ import {
   checkPrMergeability,
   validateRemoteUrl,
   runGitCommand,
+  cleanupBranch,
   type PrMergeabilityResult,
   type GitPreflightError,
   type GitFileChange,
@@ -424,9 +425,10 @@ export async function runPhasePlan(
   );
 
   // If PRD was captured via MCP tool, write it to disk
-  if (capturedPrd) {
-    await writePrd(itemDir, capturedPrd);
-    logger.info(`PRD saved via MCP tool with ${capturedPrd.user_stories.length} stories`);
+  if (capturedPrd !== null) {
+    const prd = capturedPrd as Prd;
+    await writePrd(itemDir, prd);
+    logger.info(`PRD saved via MCP tool with ${prd.user_stories.length} stories`);
   }
 
   // Check if prd.json exists (from MCP or direct file write)
@@ -596,11 +598,12 @@ export async function runPhaseImplement(
     const variables = await buildPromptVariables(root, item, config);
     const prompt = renderPrompt(template, variables);
 
-    // Create MCP server to capture story status updates
-    const storyUpdates: Array<{ storyId: string; status: StoryStatus }> = [];
+    // Create MCP server to capture story status updates with verification
+    const storyUpdates: Array<{ storyId: string; status: StoryStatus; verification: StoryCompletionVerification | null }> = [];
     const wreckitServer = createWreckitMcpServer({
-      onUpdateStoryStatus: (storyId, status) => {
-        storyUpdates.push({ storyId, status });
+      getPrd: () => prd,
+      onUpdateStoryStatus: (storyId, status, verification) => {
+        storyUpdates.push({ storyId, status, verification });
       },
     });
 
@@ -658,13 +661,23 @@ export async function runPhaseImplement(
       }
     }
 
-    // Apply story status updates captured via MCP
+    // Apply story status updates captured via MCP (with verification warnings)
     if (storyUpdates.length > 0 && prd) {
       for (const update of storyUpdates) {
         const story = prd.user_stories.find((s) => s.id === update.storyId);
         if (story) {
           story.status = update.status;
           logger.info(`Story ${update.storyId} marked as '${update.status}' via MCP`);
+
+          // Log verification warnings (Gap 1: Acceptance Criteria Verification)
+          if (update.verification) {
+            for (const warning of update.verification.warnings) {
+              logger.warn(warning);
+            }
+            for (const error of update.verification.errors) {
+              logger.error(`Verification error: ${error}`);
+            }
+          }
         }
       }
       await writePrd(itemDir, prd);
@@ -1038,6 +1051,22 @@ export async function runPhasePr(
       `Merged ${itemId} directly to ${config.base_branch} (direct mode)` +
       (rollbackSha ? ` - Rollback SHA: ${rollbackSha}` : "")
     );
+
+    // Branch cleanup for direct mode (Gap 4: Branch Cleanup)
+    if (config.branch_cleanup.enabled && branchResult.branchName) {
+      const cleanupResult = await cleanupBranch(
+        branchResult.branchName,
+        config.base_branch,
+        {
+          ...gitOptions,
+          deleteRemote: config.branch_cleanup.delete_remote,
+        }
+      );
+      if (cleanupResult.error) {
+        logger.warn(`Branch cleanup warning: ${cleanupResult.error}`);
+      }
+    }
+
     return { success: true, item };
   }
 
@@ -1266,6 +1295,21 @@ export async function runPhaseComplete(
   }
 
   logger.info(`Completed ${itemId}`);
+
+  // Branch cleanup for PR mode (Gap 4: Branch Cleanup)
+  if (config.branch_cleanup.enabled && item.branch) {
+    const cleanupResult = await cleanupBranch(
+      item.branch,
+      config.base_branch,
+      {
+        ...gitOptions,
+        deleteRemote: config.branch_cleanup.delete_remote,
+      }
+    );
+    if (cleanupResult.error) {
+      logger.warn(`Branch cleanup warning: ${cleanupResult.error}`);
+    }
+  }
 
   return { success: true, item };
 }

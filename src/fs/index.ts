@@ -37,3 +37,8 @@ export {
   safeWriteJson,
   cleanupOrphanedTmpFiles,
 } from "./atomic";
+
+export {
+  FileLock,
+  withRetry,
+} from "./lock";

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
-import { ConfigSchema, PrChecksSchema, type Config } from "./schemas";
+import { ConfigSchema, PrChecksSchema, BranchCleanupSchema, type Config } from "./schemas";
 import { getConfigPath, getWreckitDir } from "./fs/paths";
+import { safeWriteJson } from "./fs/atomic";
 import {
   InvalidJsonError,
   SchemaValidationError,
@@ -12,6 +13,11 @@ export interface PrChecksResolved {
   require_all_stories_done: boolean;
   allow_unsafe_direct_merge: boolean;
   allowed_remote_patterns: string[];
+}
+
+export interface BranchCleanupResolved {
+  enabled: boolean;
+  delete_remote: boolean;
 }
 
 export interface ConfigResolved {
@@ -28,6 +34,7 @@ export interface ConfigResolved {
   max_iterations: number;
   timeout_seconds: number;
   pr_checks: PrChecksResolved;
+  branch_cleanup: BranchCleanupResolved;
 }
 
 export interface ConfigOverrides {
@@ -60,6 +67,10 @@ export const DEFAULT_CONFIG: ConfigResolved = {
     allow_unsafe_direct_merge: false,
     allowed_remote_patterns: [],
   },
+  branch_cleanup: {
+    enabled: true,
+    delete_remote: true,
+  },
 };
 
 export function mergeWithDefaults(partial: Partial<Config>): ConfigResolved {
@@ -84,6 +95,13 @@ export function mergeWithDefaults(partial: Partial<Config>): ConfigResolved {
       }
     : { ...DEFAULT_CONFIG.pr_checks };
 
+  const branchCleanup = partial.branch_cleanup
+    ? {
+        enabled: partial.branch_cleanup.enabled ?? DEFAULT_CONFIG.branch_cleanup.enabled,
+        delete_remote: partial.branch_cleanup.delete_remote ?? DEFAULT_CONFIG.branch_cleanup.delete_remote,
+      }
+    : { ...DEFAULT_CONFIG.branch_cleanup };
+
   return {
     schema_version: partial.schema_version ?? DEFAULT_CONFIG.schema_version,
     base_branch: partial.base_branch ?? DEFAULT_CONFIG.base_branch,
@@ -93,6 +111,7 @@ export function mergeWithDefaults(partial: Partial<Config>): ConfigResolved {
     max_iterations: partial.max_iterations ?? DEFAULT_CONFIG.max_iterations,
     timeout_seconds: partial.timeout_seconds ?? DEFAULT_CONFIG.timeout_seconds,
     pr_checks: prChecks,
+    branch_cleanup: branchCleanup,
   };
 }
 
@@ -115,6 +134,7 @@ export function applyOverrides(
     max_iterations: overrides.maxIterations ?? config.max_iterations,
     timeout_seconds: overrides.timeoutSeconds ?? config.timeout_seconds,
     pr_checks: config.pr_checks,
+    branch_cleanup: config.branch_cleanup,
   };
 }
 
@@ -168,6 +188,5 @@ export async function createDefaultConfig(root: string): Promise<void> {
   await fs.mkdir(wreckitDir, { recursive: true });
 
   const configPath = getConfigPath(root);
-  const content = JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n";
-  await fs.writeFile(configPath, content, "utf-8");
+  await safeWriteJson(configPath, DEFAULT_CONFIG);
 }

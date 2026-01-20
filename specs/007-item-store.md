@@ -205,6 +205,24 @@ Doctor validates these invariants.
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Directory layout** | ✅ Implemented | See `src/fs/paths.ts` |
+| **Path helpers** | ✅ Implemented | All functions listed in spec |
+| **Item schema** | ✅ Implemented | Zod schema in `src/schemas.ts` |
+| **PRD schema** | ✅ Implemented | Zod schema in `src/schemas.ts` |
+| **Story schema** | ✅ Implemented | Zod schema in `src/schemas.ts` |
+| **Index schema** | ✅ Implemented | Zod schema in `src/schemas.ts` |
+| **ID allocation** | ✅ Implemented | Sequential numbering with slug |
+| **Deduplication** | ✅ Implemented | Existing items skipped |
+| **Schema validation** | ✅ Implemented | All JSON validated against Zod schemas |
+| **Artifact presence tracking** | ✅ Implemented | Doctor validates state/artifact consistency |
+| **JSON read/write** | ✅ Implemented | See `src/fs/json.ts` |
+
+---
+
 ## Known Gaps
 
 ### Gap 1: Non-Atomic Writes
@@ -213,7 +231,7 @@ Writes use direct `fs.writeFile` without temp file + rename pattern.
 
 **Impact:** Interrupted writes can corrupt JSON files.
 
-**Fix:** Write to temp file, then rename atomically.
+**Status:** ✅ FIXED - All JSON writes now use `safeWriteJson()` from `src/fs/atomic.ts` which implements temp file + rename pattern.
 
 ### Gap 2: No Concurrency Protection
 
@@ -221,7 +239,7 @@ Multiple processes can write to the same item simultaneously.
 
 **Impact:** Race conditions, state corruption.
 
-**Fix:** Add file-based locking or advisory lock mechanism.
+**Status:** ✅ FIXED - File locking implemented in `src/fs/lock.ts`. Item/PRD/index writes use `{ useLock: true }` option. Locks include PID/timestamp for stale detection (60s timeout).
 
 ### Gap 3: Schema Version Migration
 
@@ -229,7 +247,7 @@ No migration path when schema version changes.
 
 **Impact:** Old items may fail validation after upgrades.
 
-**Fix:** Add migration logic keyed on `schema_version`.
+**Status:** Open - No migration logic implemented.
 
 ---
 

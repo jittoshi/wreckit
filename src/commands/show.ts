@@ -97,6 +97,14 @@ export async function showCommand(
     console.log(`PR: ${item.pr_url}`);
   }
 
+  if (item.rollback_sha) {
+    console.log(`Rollback SHA: ${item.rollback_sha}`);
+  }
+
+  if (item.completed_at) {
+    console.log(`Completed: ${item.completed_at}`);
+  }
+
   if (item.last_error) {
     console.log(`Last Error: ${item.last_error}`);
   }

@@ -205,7 +205,7 @@ async function processItemsParallel(
     mockAgent: boolean;
     logger: Logger;
     root: string;
-    simpleProgress: ReturnType<typeof createSimpleProgress>;
+    simpleProgress: ReturnType<typeof createSimpleProgress> | null;
     parallel: number;
   },
   result: OrchestratorResult

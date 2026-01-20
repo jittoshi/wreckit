@@ -3,6 +3,7 @@ import * as path from "node:path";
 import type { Logger } from "../logging";
 import { WreckitError } from "../errors";
 import { DEFAULT_CONFIG } from "../config";
+import { safeWriteJson } from "../fs/atomic";
 import { getDefaultTemplate, type PromptName } from "../prompts";
 
 export interface InitOptions {
@@ -71,11 +72,7 @@ export async function initCommand(
   await fs.mkdir(promptsDir, { recursive: true });
 
   const configPath = path.join(wreckitDir, "config.json");
-  await fs.writeFile(
-    configPath,
-    JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
-    "utf-8"
-  );
+  await safeWriteJson(configPath, DEFAULT_CONFIG);
 
   const promptNames: PromptName[] = ["research", "plan", "implement"];
 

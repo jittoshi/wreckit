@@ -288,11 +288,30 @@ wreckit ideas --cwd /path   # Override working directory
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Piped stdin input** | ✅ Implemented | `wreckit ideas < FILE` works |
+| **File input** | ✅ Implemented | `--file PATH` flag works |
+| **Interactive interview** | ✅ Implemented | Launches AI conversation when no input |
+| **Fallback interview** | ✅ Implemented | Field-by-field fallback on AI failure |
+| **MCP tool: save_interview_ideas** | ✅ Implemented | See `src/agent/mcp/wreckitMcpServer.ts` |
+| **MCP tool: save_parsed_ideas** | ✅ Implemented | See `src/agent/mcp/wreckitMcpServer.ts` |
+| **Tool allowlist enforcement** | ✅ Implemented | See `src/agent/toolAllowlist.ts` |
+| **Schema validation** | ✅ Implemented | Zod schemas in `src/schemas.ts` |
+| **Deduplication by slug** | ✅ Implemented | Existing items skipped |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+| **Payload size limits** | ❌ Not Implemented | Recommended limits not enforced |
+| **Social engineering prevention** | 🔶 Partial | Prompt instructions only |
+
+---
+
 ## Known Security Gaps
 
 The following are known limitations of the current security model:
 
-### Gap 1: JSON Fallback Bypasses Tool Requirement
+### Gap 1: JSON Fallback Bypasses Tool Requirement ✅ MITIGATED
 
 If the agent doesn't call the MCP tool, the system parses JSON directly from the agent's text output. This means:
 
@@ -300,19 +319,19 @@ If the agent doesn't call the MCP tool, the system parses JSON directly from the
 - Arbitrary JSON or mixed content could be accepted
 - The structured extraction channel is weakened
 
-**Mitigation:** Consider requiring MCP tool call (no fallback) or validating fallback output against the same strict schema.
+**Status:** Mitigated - fallback output is validated against the same Zod schema.
 
-### Gap 2: Extra MCP Tools Are Registered
+### Gap 2: Extra MCP Tools Are Registered ✅ FIXED
 
-The MCP server registers tools for other phases (`save_prd`, `update_story_status`) even during ingestion. These are not in the allowlist, but their presence increases blast radius if allowlisting fails.
+~~The MCP server registers tools for other phases (`save_prd`, `update_story_status`) even during ingestion.~~
 
-**Mitigation:** Use a dedicated ingestion-only MCP server that only registers idea-saving tools.
+**Status:** Fixed - A dedicated `ideasMcpServer.ts` only registers idea-saving tools. See `src/agent/mcp/ideasMcpServer.ts`.
 
 ### Gap 3: Permission Bypass Mode
 
 During interactive interview extraction, the system uses bypass-permissions mode to avoid prompts. If the allowlist enforcement is buggy, dangerous tools could execute without confirmation.
 
-**Mitigation:** Ensure allowlist is enforced at the lowest layer; abort if enforcement fails.
+**Status:** Open - Allowlist is enforced at the SDK layer, but no abort-on-failure mechanism.
 
 ---
 

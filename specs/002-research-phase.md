@@ -296,23 +296,37 @@ Create `.wreckit/prompts/research.md` to customize the research prompt. This fil
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core research phase** | ✅ Implemented | See `src/workflow/itemWorkflow.ts:runPhaseResearch` |
+| **Prompt template loading** | ✅ Implemented | Project overrides in `.wreckit/prompts/research.md` |
+| **Template variable substitution** | ✅ Implemented | All variables in spec are supported |
+| **Artifact validation (exists)** | ✅ Implemented | Checks `research.md` exists |
+| **Skip if artifact exists** | ✅ Implemented | `--force` flag to regenerate |
+| **Tool allowlist (read-only)** | ✅ Implemented | See `src/agent/toolAllowlist.ts` - only Read, Glob, Grep |
+| **Git status comparison (write containment)** | ✅ Implemented | Before/after status comparison blocks violations |
+| **Research quality validation** | ✅ Implemented | See `src/domain/validation.ts:validateResearchQuality` |
+| **State transitions** | ✅ Implemented | `idea` → `researched` on success |
+| **Error handling** | ✅ Implemented | `last_error` set on failure |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+
+---
+
 ## Known Gaps
 
-### Gap 1: No Programmatic Read-Only Enforcement
+### Gap 1: No Programmatic Read-Only Enforcement ✅ FIXED
 
-The research phase relies entirely on prompt instructions to prevent code changes. If the agent ignores instructions and modifies files, the phase will still succeed.
+~~The research phase relies entirely on prompt instructions to prevent code changes.~~
 
-**Impact:** Unintended changes can propagate to PR phase and get committed.
+**Status:** Fixed - Git status comparison before/after research detects and blocks violations. See `getGitStatus()` and `compareGitStatus()` in `src/git/index.ts`.
 
-**Mitigation:** Implement git status comparison before/after research to detect and block violations.
+### Gap 2: No Research Quality Validation ✅ FIXED
 
-### Gap 2: No Research Quality Validation
+~~The system only checks that `research.md` exists, not that it contains useful content.~~
 
-The system only checks that `research.md` exists, not that it contains useful content. Shallow or generic research can pass validation.
-
-**Impact:** Poor research leads to poor planning and implementation.
-
-**Mitigation:** Validate required sections exist and minimum citation density is met.
+**Status:** Fixed - Research quality validation implemented in `src/domain/validation.ts:validateResearchQuality()`. Checks required sections, citation density, and minimum length.
 
 ### Gap 3: Silent Read Errors
 
@@ -320,7 +334,7 @@ If reading existing artifacts fails (permissions, corruption), errors are swallo
 
 **Impact:** State inconsistencies may go undetected.
 
-**Mitigation:** Surface read errors explicitly rather than treating as "not found."
+**Status:** Open - Still relies on try/catch returning undefined for missing files.
 
 ---
 

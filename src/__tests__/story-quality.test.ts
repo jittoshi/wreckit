@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import {
   validateStoryQuality,
+  verifyStoryCompletion,
   DEFAULT_STORY_QUALITY_OPTIONS,
   type StoryQualityOptions,
 } from "../domain/validation";
@@ -592,6 +593,126 @@ describe("Story Quality Validation (Gap 3)", () => {
 
         const result = validateStoryQuality(prd, defaultOptions);
         expect(result.valid).toBe(true);
+      });
+    });
+  });
+
+  describe("verifyStoryCompletion (Gap 1: Acceptance Criteria Verification)", () => {
+    describe("with valid PRD and story", () => {
+      it("returns valid when story has acceptance criteria", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "Valid Story",
+              acceptance_criteria: ["Criterion 1", "Criterion 2"],
+              status: "pending",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-001", prd);
+        expect(result.valid).toBe(true);
+        expect(result.storyId).toBe("US-001");
+        expect(result.warnings).toEqual([]);
+        expect(result.errors).toEqual([]);
+      });
+
+      it("returns warning when story has no acceptance criteria", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "No Criteria Story",
+              acceptance_criteria: [],
+              status: "pending",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-001", prd);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.some(w => w.includes("no acceptance criteria"))).toBe(true);
+      });
+
+      it("returns warning when story has empty acceptance criteria", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "Empty Criteria Story",
+              acceptance_criteria: ["Valid", "", "  "],
+              status: "pending",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-001", prd);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.some(w => w.includes("empty acceptance criteria"))).toBe(true);
+      });
+
+      it("returns warning when story is already done", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "Already Done Story",
+              acceptance_criteria: ["C1", "C2"],
+              status: "done",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-001", prd);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.some(w => w.includes("already marked as done"))).toBe(true);
+      });
+    });
+
+    describe("with invalid input", () => {
+      it("returns error when PRD is null", () => {
+        const result = verifyStoryCompletion("US-001", null);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.includes("PRD not loaded"))).toBe(true);
+      });
+
+      it("returns error when story not found in PRD", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "Story",
+              acceptance_criteria: ["C1", "C2"],
+              status: "pending",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-999", prd);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.includes("not found"))).toBe(true);
+      });
+    });
+
+    describe("multiple warnings", () => {
+      it("accumulates warnings from multiple issues", () => {
+        const prd = {
+          user_stories: [
+            {
+              id: "US-001",
+              title: "Problem Story",
+              acceptance_criteria: ["Valid", ""],
+              status: "done",
+            },
+          ],
+        };
+
+        const result = verifyStoryCompletion("US-001", prd);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.length).toBe(2);
+        expect(result.warnings.some(w => w.includes("empty acceptance criteria"))).toBe(true);
+        expect(result.warnings.some(w => w.includes("already marked as done"))).toBe(true);
       });
     });
   });

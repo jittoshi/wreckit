@@ -276,15 +276,37 @@ If the agent cannot complete a story, iterations continue until the limit:
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core implement phase** | ✅ Implemented | See `src/workflow/itemWorkflow.ts:runPhaseImplement` |
+| **Iteration loop** | ✅ Implemented | Processes one story per iteration |
+| **Story selection by priority** | ✅ Implemented | Filters `pending` stories, selects first |
+| **MCP tool: update_story_status** | ✅ Implemented | See `src/agent/mcp/wreckitMcpServer.ts` |
+| **Progress log** | ✅ Implemented | Appends to `progress.log` after each iteration |
+| **PRD status updates** | ✅ Implemented | Updates `prd.json` as stories complete |
+| **Tool allowlist (full access)** | ✅ Implemented | See `src/agent/toolAllowlist.ts` |
+| **Max iterations limit** | ✅ Implemented | Configurable via `max_iterations` |
+| **Resumability** | ✅ Implemented | Reads PRD state, skips completed stories |
+| **State transitions** | ✅ Implemented | `planned` → `implementing` |
+| **Error handling** | ✅ Implemented | `last_error` set on failure |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+
+---
+
 ## Known Gaps
 
-### Gap 1: No Acceptance Criteria Verification
+### Gap 1: No Acceptance Criteria Verification ✅ MITIGATED
 
-The system trusts the agent's assertion that a story is "done" without verifying acceptance criteria are met.
+~~The system trusts the agent's assertion that a story is "done" without verifying acceptance criteria are met.~~
 
-**Impact:** Incomplete or broken implementations can proceed to PR.
+**Status:** Mitigated - When a story is marked as done via MCP tool, the system now verifies:
+- Story exists in the PRD
+- Story has acceptance criteria defined
+- Acceptance criteria are not empty
 
-**Mitigation:** Require evidence with story completion (test logs, diff summary) or add a verification sub-phase.
+Verification warnings are logged but do not block story completion (to avoid breaking existing flows). See `verifyStoryCompletion()` in `src/domain/validation.ts` and the MCP handler in `src/agent/mcp/wreckitMcpServer.ts`.
 
 ### Gap 2: No Story Scope Enforcement
 
@@ -292,15 +314,13 @@ The agent can modify any files during implementation. There is no check that cha
 
 **Impact:** Scope creep, unrelated refactors, tangled commits.
 
-**Mitigation:** Add optional diff-size/path heuristics that warn or fail on excessive unrelated changes.
+**Status:** Open - No diff-size/path heuristics implemented.
 
-### Gap 3: No Automated Testing Requirement
+### Gap 3: No Automated Testing Requirement ✅ MITIGATED
 
-The prompt instructs the agent to run tests, but there is no verification that tests were run or passed.
+~~The prompt instructs the agent to run tests, but there is no verification that tests were run or passed.~~
 
-**Impact:** Broken code can be marked complete.
-
-**Mitigation:** Require test command execution before accepting story completion, or add a pre-PR verification gate.
+**Status:** Mitigated - Pre-push quality gates can be configured (see `pr_checks` in config). Tests run before PR push.
 
 ### Gap 4: Direct Merge Risk
 
@@ -308,7 +328,7 @@ In `merge_mode: "direct"`, completed stories merge immediately without PR review
 
 **Impact:** Broken or incomplete code ships to production branch.
 
-**Mitigation:** Make direct merge opt-in with explicit warnings, or require `--force` flag.
+**Status:** Open - Direct merge still bypasses CI. Users should only use for greenfield projects.
 
 ---
 

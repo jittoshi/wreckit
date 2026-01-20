@@ -17,3 +17,4 @@ export {
   NotGitRepoError,
   WreckitExistsError,
 } from "./init";
+export { rollbackCommand, type RollbackOptions, type RollbackResult } from "./rollback";

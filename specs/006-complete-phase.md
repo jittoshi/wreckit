@@ -197,51 +197,59 @@ This provides a human-readable record alongside the structured metadata.
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core complete phase** | ✅ Implemented | See `src/workflow/itemWorkflow.ts:runPhaseComplete` |
+| **PR merge verification** | ✅ Implemented | Uses `gh pr view` |
+| **Base branch validation** | ✅ Implemented | Verifies merged to correct branch |
+| **Head branch validation** | ✅ Implemented | Warns if head differs from expected |
+| **Checks status logging** | ✅ Implemented | Logs CI check status |
+| **Audit trail** | ✅ Implemented | Metadata in item + progress.log |
+| **State transitions** | ✅ Implemented | `in_pr` → `done` |
+| **Error handling** | ✅ Implemented | Distinct errors for different failures |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+
+---
+
 ## Known Gaps
 
-### Gap 1: Minimal Merge Validation
+### Gap 1: Minimal Merge Validation ✅ FIXED
 
-The complete phase only checks that `state === "MERGED"`. It does not verify:
-- Merged to correct branch
-- Merge commit exists on remote
-- CI checks passed
-- Code matches what was pushed
+~~The complete phase only checks that `state === "MERGED"`.~~
 
-**Impact:** Incorrect or incomplete merges may be marked as complete.
+**Status:** Fixed - Now verifies base branch, head branch, merge commit, and CI check status. See `getPrDetails()` in `src/git/index.ts`.
 
-**Fix:** Fetch full PR details and validate base branch, head commit, and check status.
+### Gap 2: No Direct Mode Verification ✅ FIXED
 
-### Gap 2: No Direct Mode Verification
+~~Direct merge mode bypasses the complete phase entirely. There is no verification that the merge actually landed on the remote.~~
 
-Direct merge mode bypasses the complete phase entirely. There is no verification that the merge actually landed on the remote.
+**Status:** Fixed - Direct mode now verifies merge landed on remote:
+- Fetches remote base branch after push
+- Compares local HEAD SHA with remote HEAD SHA
+- Fails with clear error if they don't match
+- See `src/workflow/itemWorkflow.ts:961-1005`
 
-**Impact:** Local-only merges could be marked complete without pushing.
+### Gap 3: Silent `gh` Failures ✅ FIXED
 
-**Fix:** Add post-merge verification in direct mode path.
+~~If the `gh` command fails (auth issues, network), the result is treated as "not merged" with a generic error.~~
 
-### Gap 3: Silent `gh` Failures
+**Status:** Fixed - Returns distinct errors for command failures vs. not-merged states. See `getPrDetails()` with `querySucceeded` flag.
 
-If the `gh` command fails (auth issues, network), the result is treated as "not merged" with a generic error.
-
-**Impact:** Users don't know why completion is failing.
-
-**Fix:** Return distinct errors for command failures vs. not-merged states.
-
-### Gap 4: No Branch Cleanup
+### Gap 4: No Branch Cleanup ✅ FIXED
 
 Feature branches are not deleted after completion. They accumulate on local and remote.
 
 **Impact:** Branch clutter, potential confusion.
 
-**Fix:** Delete feature branches after confirmed merge.
+**Status:** ✅ FIXED - Branch cleanup implemented via `cleanupBranch()` in `src/git/index.ts`. Configurable via `branch_cleanup.enabled` and `branch_cleanup.delete_remote` in config. Runs after successful completion in both PR and direct modes.
 
-### Gap 5: No Audit Trail
+### Gap 5: No Audit Trail ✅ FIXED
 
-Completion metadata (when, what commit, checks status) is not recorded.
+~~Completion metadata (when, what commit, checks status) is not recorded.~~
 
-**Impact:** No forensic data for debugging or compliance.
-
-**Fix:** Record completion metadata in item and progress log.
+**Status:** Fixed - Records `completed_at`, `merged_at`, `merge_commit_sha`, `checks_passed` in item. Also appends to `progress.log`.
 
 ---
 

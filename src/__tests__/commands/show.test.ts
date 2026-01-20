@@ -282,4 +282,33 @@ describe("showCommand", () => {
     expect(calls.some((c) => c.includes("PR: https://github.com/org/repo/pull/123"))).toBe(true);
     consoleSpy.mockRestore();
   });
+
+  it("shows rollback_sha when available", async () => {
+    await createItem(tempDir, "001-test", {
+      rollback_sha: "abc123def456",
+    });
+
+    const logger = createMockLogger();
+    const consoleSpy = spyOn(console, "log");
+    await showCommand("001-test", {}, logger);
+
+    const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
+    expect(calls.some((c) => c.includes("Rollback SHA: abc123def456"))).toBe(true);
+    consoleSpy.mockRestore();
+  });
+
+  it("shows completed_at when available", async () => {
+    const completedAt = "2024-01-15T10:30:00Z";
+    await createItem(tempDir, "001-test", {
+      completed_at: completedAt,
+    });
+
+    const logger = createMockLogger();
+    const consoleSpy = spyOn(console, "log");
+    await showCommand("001-test", {}, logger);
+
+    const calls = consoleSpy.mock.calls.map((c) => String(c[0]));
+    expect(calls.some((c) => c.includes(`Completed: ${completedAt}`))).toBe(true);
+    consoleSpy.mockRestore();
+  });
 });

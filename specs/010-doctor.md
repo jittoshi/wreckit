@@ -240,15 +240,33 @@ Fixed 2 issues
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core doctor command** | ✅ Implemented | See `src/doctor.ts` |
+| **Config validation** | ✅ Implemented | `MISSING_CONFIG`, `INVALID_CONFIG` |
+| **Item validation** | ✅ Implemented | `MISSING_ITEM_JSON`, `INVALID_ITEM_JSON` |
+| **PRD validation** | ✅ Implemented | `INVALID_PRD` |
+| **State/artifact consistency** | ✅ Implemented | `STATE_FILE_MISMATCH` |
+| **Index validation** | ✅ Implemented | `INDEX_STALE` |
+| **Prompts validation** | ✅ Implemented | `MISSING_PROMPTS` |
+| **Story quality validation** | ✅ Implemented | `POOR_STORY_QUALITY` |
+| **Fix: STATE_FILE_MISMATCH** | ✅ Implemented | Regresses state to match artifacts |
+| **Fix: INDEX_STALE** | ✅ Implemented | Regenerates index.json |
+| **Fix: MISSING_PROMPTS** | ✅ Implemented | Creates default templates |
+| **--fix flag** | ✅ Implemented | Auto-fix recoverable issues |
+| **Exit codes** | ✅ Implemented | 0 (no errors), 1 (errors found) |
+
+---
+
 ## Known Gaps
 
-### Gap 1: No Deep PRD Validation
+### Gap 1: No Deep PRD Validation ✅ FIXED
 
-Doctor validates PRD schema but not story quality or completeness relative to state.
+~~Doctor validates PRD schema but not story quality or completeness relative to state.~~
 
-**Impact:** Stories with empty criteria or wrong status pass validation.
-
-**Fix:** Add story-level validation (min criteria, valid status for state).
+**Status:** Fixed - Story quality validation implemented. See `validateStoryQuality()` in `src/domain/validation.ts`. Reports `POOR_STORY_QUALITY` diagnostic.
 
 ### Gap 2: Limited Fix Scope
 
@@ -256,7 +274,7 @@ Only `STATE_FILE_MISMATCH`, `INDEX_STALE`, and `MISSING_PROMPTS` are fixable.
 
 **Impact:** Many issues require manual intervention.
 
-**Fix:** Add more automated repairs where safe (e.g., regenerate missing index).
+**Status:** Open - No additional automated repairs added.
 
 ### Gap 3: No Backup Before Fix
 
@@ -264,7 +282,7 @@ Fixes modify files without creating backups.
 
 **Impact:** Cannot undo fixes if they cause problems.
 
-**Fix:** Copy original file to `.bak` before modifying.
+**Status:** Open - No backup mechanism implemented.
 
 ### Gap 4: Silent Read Errors
 
@@ -272,7 +290,7 @@ If reading an artifact fails (permissions), the error is swallowed and artifact 
 
 **Impact:** Real errors masked as missing files.
 
-**Fix:** Distinguish "missing" from "unreadable" in diagnostics.
+**Status:** Open - Still swallows read errors.
 
 ---
 

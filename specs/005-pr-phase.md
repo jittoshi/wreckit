@@ -393,63 +393,75 @@ The PR phase is designed to be safely re-runnable.
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core PR phase** | ✅ Implemented | See `src/workflow/itemWorkflow.ts:runPhasePr` |
+| **PR mode (create/update PR)** | ✅ Implemented | Uses `gh` CLI |
+| **Direct mode (merge to base)** | ✅ Implemented | Configurable via `merge_mode` |
+| **Branch management** | ✅ Implemented | Creates/switches to feature branch |
+| **Auto-commit** | ✅ Implemented | Commits uncommitted changes |
+| **PR description generation** | ✅ Implemented | Agent generates title/body |
+| **Git preflight checks** | ✅ Implemented | Validates repo state |
+| **Pre-push quality gates** | ✅ Implemented | See `src/git/quality.ts:runPrePushQualityGates` |
+| **Secret scanning** | ✅ Implemented | See `src/git/quality.ts:scanForSecrets` |
+| **Conflict pre-check** | ✅ Implemented | See `src/git/index.ts:checkMergeConflicts` |
+| **Remote URL validation** | ✅ Implemented | See `src/git/index.ts:validateRemoteUrl` |
+| **Mergeability check after PR** | ✅ Implemented | See `src/git/index.ts:checkPrMergeability` |
+| **State transitions** | ✅ Implemented | `implementing` → `in_pr` (PR mode) or `done` (direct) |
+| **Error handling** | ✅ Implemented | `last_error` set on failure |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+
+---
+
 ## Known Gaps
 
-### Gap 1: Preflight/Commit Ordering Bug (Critical)
+### Gap 1: Preflight/Commit Ordering Bug (Critical) ✅ FIXED
 
-The preflight check rejects uncommitted changes, but the auto-commit logic runs after preflight. This means the auto-commit never executes.
+~~The preflight check rejects uncommitted changes, but the auto-commit logic runs after preflight.~~
 
-**Impact:** PR phase fails on any repo with uncommitted changes from implementation.
+**Status:** Fixed - Commit happens before preflight check. See `runPhasePr` in `src/workflow/itemWorkflow.ts`.
 
-**Fix:** Reorder to: ensure branch → commit if dirty → preflight (require clean) → push.
+### Gap 2: No Quality Gate Before Push ✅ FIXED
 
-### Gap 2: No Quality Gate Before Push
+~~There is no test/lint/typecheck execution before pushing.~~
 
-There is no test/lint/typecheck execution before pushing. Broken code can be pushed and create PRs.
+**Status:** Fixed - Pre-push quality gates implemented. See `runPrePushQualityGates()` in `src/git/quality.ts`. Configurable via `pr_checks` in config.
 
-**Impact:** PRs created with failing tests, lint errors, or type errors.
+### Gap 3: No Secret Scanning ✅ FIXED
 
-**Fix:** Add configurable pre-push commands that must pass before pushing.
+~~There is no scanning for credentials, API keys, or sensitive data in the diff.~~
 
-### Gap 3: No Secret Scanning
+**Status:** Fixed - Secret scanning implemented. See `scanForSecrets()` in `src/git/quality.ts`. Scans for private keys, AWS keys, GitHub tokens, etc.
 
-There is no scanning for credentials, API keys, or sensitive data in the diff.
-
-**Impact:** Secrets can be committed and pushed to remote.
-
-**Fix:** Scan diff for common credential patterns before commit.
-
-### Gap 4: Direct Mode Bypasses All Safeguards
+### Gap 4: Direct Mode Bypasses All Safeguards ✅ FIXED
 
 Direct merge mode skips PR review, CI checks, and branch protections.
 
-**Impact:** Broken or insecure code ships immediately to production branch.
+**Status:** Fixed - Same quality gates run before direct merge. Rollback anchors implemented:
+- `rollback_sha` captured before merge and stored in item metadata
+- `wreckit rollback <id>` command resets base branch to pre-merge state
+- Rollback instructions logged during merge
+- See `src/commands/rollback.ts` and `src/workflow/itemWorkflow.ts:937-950`
 
-**Fix:** Require explicit opt-in, run same quality gates, create rollback anchors.
+### Gap 5: No Conflict Pre-Check ✅ FIXED
 
-### Gap 5: No Conflict Pre-Check
+~~The system doesn't check for merge conflicts before attempting direct merge.~~
 
-The system doesn't check for merge conflicts before attempting direct merge.
+**Status:** Fixed - Conflict detection before merge implemented. See `checkMergeConflicts()` in `src/git/index.ts`.
 
-**Impact:** Merge fails mid-way, leaving repo in inconsistent state.
+### Gap 6: No Remote Validation ✅ FIXED
 
-**Fix:** Detect potential conflicts before merge; auto-abort on failure.
+~~The system doesn't verify the remote URL matches expected repository.~~
 
-### Gap 6: No Remote Validation
+**Status:** Fixed - Remote URL validation implemented. See `validateRemoteUrl()` in `src/git/index.ts`. Configurable patterns in config.
 
-The system doesn't verify the remote URL matches expected repository.
+### Gap 7: No Mergeability Check After PR Creation ✅ FIXED
 
-**Impact:** Code could be pushed to wrong repository (fork, different org).
+~~After creating a PR, the system doesn't verify the PR is actually mergeable.~~
 
-**Fix:** Validate `origin` remote URL against configured/expected pattern.
-
-### Gap 7: No Mergeability Check After PR Creation
-
-After creating a PR, the system doesn't verify the PR is actually mergeable.
-
-**Impact:** PRs created that immediately show as unmergeable due to conflicts.
-
-**Fix:** Query `gh pr view --json mergeable` after creation and warn/fail if not mergeable.
+**Status:** Fixed - Mergeability check implemented. See `checkPrMergeability()` in `src/git/index.ts`. Warns if PR has conflicts.
 
 ---
 

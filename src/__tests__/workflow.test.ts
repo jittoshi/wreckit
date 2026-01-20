@@ -37,22 +37,20 @@ const mockedCreateOrUpdatePr = vi.fn(() =>
   })
 );
 const mockedIsPrMerged = vi.fn(() => Promise.resolve(true));
-// Store real functions before mocking for git/index.test.ts to use
-const realGetPrDetails = gitModule.getPrDetails;
-const realCheckPrMergeability = gitModule.checkPrMergeability;
-const realCheckMergeConflicts = gitModule.checkMergeConflicts;
 
-// These mocks delegate to real implementations so git/index.test.ts can spy on runGhCommand
-// For workflow tests, we use mockImplementation to override behavior
-const mockedGetPrDetails = vi.fn().mockImplementation((prNumber: number, options: any) =>
-  realGetPrDetails(prNumber, options)
-);
-const mockedCheckMergeConflicts = vi.fn().mockImplementation((baseBranch: string, featureBranch: string, options: any) =>
-  realCheckMergeConflicts(baseBranch, featureBranch, options)
-);
-const mockedCheckPrMergeability = vi.fn().mockImplementation((prNumber: number, options: any) =>
-  realCheckPrMergeability(prNumber, options)
-);
+// Store real runGitCommand before mocking for use in selective passthrough
+const realRunGitCommand = gitModule.runGitCommand;
+
+// Store real implementations for passthrough when running git tests
+const realGetPrDetails = gitModule.getPrDetails;
+const realCheckMergeConflicts = gitModule.checkMergeConflicts;
+const realCheckPrMergeability = gitModule.checkPrMergeability;
+
+// Default mocks delegate to real implementations - workflow tests override in beforeEach
+// This allows git/index.test.ts to spy on these and have them work correctly
+const mockedGetPrDetails = vi.fn().mockImplementation(realGetPrDetails);
+const mockedCheckMergeConflicts = vi.fn().mockImplementation(realCheckMergeConflicts);
+const mockedCheckPrMergeability = vi.fn().mockImplementation(realCheckPrMergeability);
 const mockedCheckGitPreflight = vi.fn(() =>
   Promise.resolve({ valid: true, errors: [] })
 );
@@ -61,7 +59,20 @@ const mockedGetCurrentBranch = vi.fn(() => Promise.resolve("wreckit/001-test-fea
 const mockedGetBranchSha = vi.fn(() => Promise.resolve("abc123"));
 const mockedMergeAndPushToBase = vi.fn(() => Promise.resolve());
 const mockedValidateRemoteUrl = vi.fn(() => Promise.resolve({ valid: true, actualUrl: "https://github.com/example/repo", errors: [] }));
-const mockedRunPrePushQualityGates = vi.fn(() => Promise.resolve({ success: true, errors: [], skipped: [] }));
+const mockedCleanupBranch = vi.fn(() => Promise.resolve({ localDeleted: true, remoteDeleted: true }));
+// Default to real implementation, workflow tests override in beforeEach
+const realRunPrePushQualityGates = gitModule.runPrePushQualityGates;
+const mockedRunPrePushQualityGates = vi.fn().mockImplementation(realRunPrePushQualityGates);
+// Mock runGitCommand - delegates to real implementation for git status (needed for write containment tests)
+// but returns mock values for other commands (needed for direct mode verification)
+const mockedRunGitCommand = vi.fn().mockImplementation((args: string[], options: any) => {
+  // For git status, use real implementation (needed by compareGitStatus for write containment)
+  if (args[0] === "status" && args[1] === "--porcelain") {
+    return realRunGitCommand(args, options);
+  }
+  // For other commands, return mock success
+  return Promise.resolve({ stdout: "abc123def456", exitCode: 0 });
+});
 
 mock.module("../git", () => ({
   ensureBranch: mockedEnsureBranch,
@@ -79,6 +90,7 @@ mock.module("../git", () => ({
   checkMergeConflicts: mockedCheckMergeConflicts,
   checkPrMergeability: mockedCheckPrMergeability,
   validateRemoteUrl: mockedValidateRemoteUrl,
+  cleanupBranch: mockedCleanupBranch,
   runPrePushQualityGates: mockedRunPrePushQualityGates,
   // Pass through real implementations for functions used by git-status-comparison.test.ts and quality.test.ts
   compareGitStatus: gitModule.compareGitStatus,
@@ -89,8 +101,9 @@ mock.module("../git", () => ({
   runQualityChecks: gitModule.runQualityChecks,
   runSecretScan: gitModule.runSecretScan,
   scanForSecrets: gitModule.scanForSecrets,
-  // Also pass through other functions that might be imported
-  runGitCommand: gitModule.runGitCommand,
+  // Mock runGitCommand for direct mode verification tests
+  runGitCommand: mockedRunGitCommand,
+  // Pass through for gh commands (but most tests mock higher-level functions)
   runGhCommand: gitModule.runGhCommand,
   branchExists: gitModule.branchExists,
   getPrByBranch: gitModule.getPrByBranch,
@@ -109,14 +122,14 @@ const {
   getNextPhase,
 } = await import("../workflow");
 
-function createMockLogger(): Logger {
+function createMockLogger() {
   return {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     json: vi.fn(),
-  };
+  } satisfies Logger;
 }
 
 function createTestConfig(): ConfigResolved {
@@ -138,6 +151,11 @@ function createTestConfig(): ConfigResolved {
       secret_scan: false,
       require_all_stories_done: true,
       allow_unsafe_direct_merge: false,
+      allowed_remote_patterns: [],
+    },
+    branch_cleanup: {
+      enabled: true,
+      delete_remote: true,
     },
   };
 }
@@ -258,7 +276,7 @@ function createMockAgentResult(
 
 describe("workflow", () => {
   let tempDir: string;
-  let mockLogger: Logger;
+  let mockLogger: ReturnType<typeof createMockLogger>;
   let config: ConfigResolved;
 
   beforeEach(async () => {
@@ -266,10 +284,30 @@ describe("workflow", () => {
     mockLogger = createMockLogger();
     config = createTestConfig();
     vi.clearAllMocks();
+    
+    // Reset mocks to workflow test defaults (overrides the real implementation passthrough)
+    mockedGetPrDetails.mockResolvedValue({
+      merged: true,
+      querySucceeded: true,
+      baseRefName: "main",
+      headRefName: "wreckit/001-test-feature",
+      mergeCommitOid: "abc123def456",
+      mergedAt: "2024-01-15T10:30:00Z",
+      checksPassed: true,
+    });
+    mockedCheckMergeConflicts.mockResolvedValue({ hasConflicts: false });
+    mockedCheckPrMergeability.mockResolvedValue({ mergeable: true, determined: true });
+    mockedRunPrePushQualityGates.mockResolvedValue({ success: true, errors: [], skipped: [] });
   });
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    
+    // Reset mocks to passthrough to real implementations for other test files
+    mockedGetPrDetails.mockImplementation(realGetPrDetails);
+    mockedCheckMergeConflicts.mockImplementation(realCheckMergeConflicts);
+    mockedCheckPrMergeability.mockImplementation(realCheckPrMergeability);
+    mockedRunPrePushQualityGates.mockImplementation(realRunPrePushQualityGates);
   });
 
   async function setupItem(item: Item): Promise<string> {
@@ -1068,8 +1106,8 @@ None.
         const infoCalls = mockLogger.info.mock.calls;
         const logEntry = infoCalls.find((call: string[]) => call[0]?.includes("changed") && call[0]?.includes("file"));
         expect(logEntry).toBeDefined();
-        expect(logEntry[0]).toContain("US-001");
-        expect(logEntry[0]).toContain("changed");
+        expect(logEntry![0]).toContain("US-001");
+        expect(logEntry![0]).toContain("changed");
       });
 
       it("warns when story modifies wreckit system files", async () => {
@@ -1118,8 +1156,8 @@ None.
         const warnCalls = mockLogger.warn.mock.calls;
         const warnEntry = warnCalls.find((call: string[]) => call[0]?.includes("wreckit system files"));
         expect(warnEntry).toBeDefined();
-        expect(warnEntry[0]).toContain("US-001");
-        expect(warnEntry[0]).toContain("wreckit system files");
+        expect(warnEntry![0]).toContain("US-001");
+        expect(warnEntry![0]).toContain("wreckit system files");
       });
 
       it("does not warn for changes within item directory", async () => {
@@ -1756,7 +1794,7 @@ None.
       const warnCalls = mockLogger.warn.mock.calls;
       const warnEntry = warnCalls.find((call: string[]) => call[0]?.includes("DIRECT MERGE MODE"));
       expect(warnEntry).toBeDefined();
-      expect(warnEntry[0]).toContain("bypasses PR review");
+      expect(warnEntry![0]).toContain("bypasses PR review");
     });
 
     it("creates rollback anchor before direct merge", async () => {
@@ -1795,6 +1833,203 @@ None.
       // Verify rollback SHA is saved to item
       const updatedItem = await readItemState(item.id);
       expect(updatedItem.rollback_sha).toBe("abc123");
+    });
+
+    it("cleans up branch after direct merge when cleanup enabled", async () => {
+      const prd = createTestPrd({
+        user_stories: [
+          {
+            id: "US-001",
+            title: "Done Story",
+            acceptance_criteria: [],
+            priority: 1,
+            status: "done",
+            notes: "",
+          },
+        ],
+      });
+      const item = createTestItem({ state: "implementing" });
+      const itemDir = await setupItem(item);
+      await fs.writeFile(
+        path.join(itemDir, "prd.json"),
+        JSON.stringify(prd, null, 2),
+        "utf-8"
+      );
+
+      const directConfig = {
+        ...config,
+        merge_mode: "direct" as const,
+        pr_checks: { ...config.pr_checks, allow_unsafe_direct_merge: true },
+        branch_cleanup: { enabled: true, delete_remote: true },
+      };
+
+      mockedCleanupBranch.mockClear();
+
+      await runPhasePr(item.id, {
+        root: tempDir,
+        config: directConfig,
+        logger: mockLogger,
+      });
+
+      expect(mockedCleanupBranch).toHaveBeenCalledWith(
+        "wreckit/001-test-feature",
+        "main",
+        expect.objectContaining({ deleteRemote: true })
+      );
+    });
+
+    it("skips branch cleanup when cleanup disabled", async () => {
+      const prd = createTestPrd({
+        user_stories: [
+          {
+            id: "US-001",
+            title: "Done Story",
+            acceptance_criteria: [],
+            priority: 1,
+            status: "done",
+            notes: "",
+          },
+        ],
+      });
+      const item = createTestItem({ state: "implementing" });
+      const itemDir = await setupItem(item);
+      await fs.writeFile(
+        path.join(itemDir, "prd.json"),
+        JSON.stringify(prd, null, 2),
+        "utf-8"
+      );
+
+      const directConfig = {
+        ...config,
+        merge_mode: "direct" as const,
+        pr_checks: { ...config.pr_checks, allow_unsafe_direct_merge: true },
+        branch_cleanup: { enabled: false, delete_remote: false },
+      };
+
+      mockedCleanupBranch.mockClear();
+
+      await runPhasePr(item.id, {
+        root: tempDir,
+        config: directConfig,
+        logger: mockLogger,
+      });
+
+      expect(mockedCleanupBranch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("runPhaseComplete - branch cleanup (Gap 4)", () => {
+    it("cleans up branch after PR merge when cleanup enabled", async () => {
+      const item = createTestItem({
+        state: "in_pr",
+        branch: "wreckit/001-test-feature",
+        pr_number: 42,
+        pr_url: "https://github.com/example/repo/pull/42",
+      });
+      await setupItem(item);
+
+      mockedGetPrDetails.mockResolvedValue({
+        merged: true,
+        querySucceeded: true,
+        baseRefName: "main",
+        headRefName: "wreckit/001-test-feature",
+        mergeCommitOid: "abc123",
+        mergedAt: "2024-01-15T10:30:00Z",
+        checksPassed: true,
+      });
+
+      const cleanupConfig = {
+        ...config,
+        branch_cleanup: { enabled: true, delete_remote: true },
+      };
+
+      mockedCleanupBranch.mockClear();
+
+      await runPhaseComplete(item.id, {
+        root: tempDir,
+        config: cleanupConfig,
+        logger: mockLogger,
+      });
+
+      expect(mockedCleanupBranch).toHaveBeenCalledWith(
+        "wreckit/001-test-feature",
+        "main",
+        expect.objectContaining({ deleteRemote: true })
+      );
+    });
+
+    it("skips branch cleanup when cleanup disabled", async () => {
+      const item = createTestItem({
+        state: "in_pr",
+        branch: "wreckit/001-test-feature",
+        pr_number: 42,
+        pr_url: "https://github.com/example/repo/pull/42",
+      });
+      await setupItem(item);
+
+      mockedGetPrDetails.mockResolvedValue({
+        merged: true,
+        querySucceeded: true,
+        baseRefName: "main",
+        headRefName: "wreckit/001-test-feature",
+        mergeCommitOid: "abc123",
+        mergedAt: "2024-01-15T10:30:00Z",
+        checksPassed: true,
+      });
+
+      const noCleanupConfig = {
+        ...config,
+        branch_cleanup: { enabled: false, delete_remote: false },
+      };
+
+      mockedCleanupBranch.mockClear();
+
+      await runPhaseComplete(item.id, {
+        root: tempDir,
+        config: noCleanupConfig,
+        logger: mockLogger,
+      });
+
+      expect(mockedCleanupBranch).not.toHaveBeenCalled();
+    });
+
+    it("only deletes local branch when delete_remote is false", async () => {
+      const item = createTestItem({
+        state: "in_pr",
+        branch: "wreckit/001-test-feature",
+        pr_number: 42,
+        pr_url: "https://github.com/example/repo/pull/42",
+      });
+      await setupItem(item);
+
+      mockedGetPrDetails.mockResolvedValue({
+        merged: true,
+        querySucceeded: true,
+        baseRefName: "main",
+        headRefName: "wreckit/001-test-feature",
+        mergeCommitOid: "abc123",
+        mergedAt: "2024-01-15T10:30:00Z",
+        checksPassed: true,
+      });
+
+      const localOnlyCleanupConfig = {
+        ...config,
+        branch_cleanup: { enabled: true, delete_remote: false },
+      };
+
+      mockedCleanupBranch.mockClear();
+
+      await runPhaseComplete(item.id, {
+        root: tempDir,
+        config: localOnlyCleanupConfig,
+        logger: mockLogger,
+      });
+
+      expect(mockedCleanupBranch).toHaveBeenCalledWith(
+        "wreckit/001-test-feature",
+        "main",
+        expect.objectContaining({ deleteRemote: false })
+      );
     });
   });
 });

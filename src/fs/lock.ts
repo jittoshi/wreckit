@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { open } from "node:fs/promises";
+import { open, type FileHandle } from "node:fs/promises";
 
 /**
  * File-based advisory lock for concurrent access protection.
@@ -14,7 +14,7 @@ import { open } from "node:fs/promises";
  * - The lock is explicitly released
  */
 export class FileLock {
-  private fd: number | null = null;
+  private fileHandle: FileHandle | null = null;
   private lockfilePath: string;
 
   private constructor(lockfilePath: string) {
@@ -76,9 +76,15 @@ export class FileLock {
         // Try to create and open the lockfile
         // For exclusive lock: use "wx" to create exclusively (fails if exists)
         // For shared lock: use "r" to read existing, no need to create
-        let fh: ReturnType<typeof open> | undefined;
+        let fh: Awaited<ReturnType<typeof open>> | undefined;
         if (exclusive) {
           fh = await open(this.lockfilePath, "wx");
+          // Write PID and timestamp to lockfile for stale detection
+          const lockContent = JSON.stringify({
+            pid: process.pid,
+            timestamp: Date.now(),
+          });
+          await fh.write(lockContent);
         } else {
           // For shared lock, just open for reading
           // If file doesn't exist, no one holds the lock, so we succeed
@@ -90,6 +96,12 @@ export class FileLock {
               // File doesn't exist, no lock is held, we can proceed
               // Create a dummy file handle to track the lock
               fh = await open(this.lockfilePath, "wx");
+              // Write PID and timestamp for stale detection
+              const lockContent = JSON.stringify({
+                pid: process.pid,
+                timestamp: Date.now(),
+              });
+              await fh.write(lockContent);
             } else {
               throw openErr;
             }
@@ -97,7 +109,7 @@ export class FileLock {
         }
 
         if (fh) {
-          this.fd = fh.fd;
+          this.fileHandle = fh;
           return;
         }
       } catch (err) {
@@ -134,16 +146,40 @@ export class FileLock {
   }
 
   /**
-   * Check if the lock file is stale (held by a dead process).
+   * Check if the lock file is stale (held by a dead process or too old).
+   * A lock is considered stale if:
+   * - The PID is not running
+   * - The lock is older than STALE_THRESHOLD_MS (60 seconds)
    */
+  private static readonly STALE_THRESHOLD_MS = 60000;
+
   private async isStale(): Promise<boolean> {
     try {
-      // Try to read the lockfile content (should contain PID)
       const content = await fs.readFile(this.lockfilePath, "utf-8");
-      const pid = parseInt(content.trim(), 10);
+
+      let pid: number;
+      let timestamp: number | undefined;
+
+      // Try parsing as JSON (new format)
+      try {
+        const data = JSON.parse(content);
+        pid = data.pid;
+        timestamp = data.timestamp;
+      } catch {
+        // Fall back to plain PID format (legacy)
+        pid = parseInt(content.trim(), 10);
+      }
 
       if (isNaN(pid)) {
         return true; // Invalid PID, treat as stale
+      }
+
+      // Check if lock is too old (stale by time)
+      if (
+        timestamp !== undefined &&
+        Date.now() - timestamp > FileLock.STALE_THRESHOLD_MS
+      ) {
+        return true;
       }
 
       // Check if process is running (kill with signal 0)
@@ -164,14 +200,13 @@ export class FileLock {
    * Must be called when done with the locked operation.
    */
   async release(): Promise<void> {
-    if (this.fd !== null) {
+    if (this.fileHandle !== null) {
       try {
-        // Close the file descriptor directly using fs.close
-        await fs.close(this.fd);
+        await this.fileHandle.close();
       } catch {
         // Ignore close errors
       }
-      this.fd = null;
+      this.fileHandle = null;
 
       // Clean up the lock file
       try {

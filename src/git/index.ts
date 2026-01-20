@@ -46,6 +46,7 @@ export interface CheckPreflightOptions extends GitOptions {
 
 export interface CommandResult {
   stdout: string;
+  stderr?: string;
   exitCode: number;
 }
 
@@ -98,11 +99,11 @@ async function runCommand(
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout?.on("data", (data) => {
       stdout += data.toString();
     });
 
-    proc.stderr.on("data", (data) => {
+    proc.stderr?.on("data", (data) => {
       stderr += data.toString();
     });
 
@@ -110,12 +111,12 @@ async function runCommand(
       if (code !== 0 && stderr) {
         logger.debug(`Command stderr: ${stderr}`);
       }
-      resolve({ stdout: stdout.trim(), exitCode: code ?? 0 });
+      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0 });
     });
 
     proc.on("error", (err) => {
       logger.debug(`Command error: ${err.message}`);
-      resolve({ stdout: "", exitCode: 1 });
+      resolve({ stdout: "", stderr: err.message, exitCode: 1 });
     });
   });
 }
@@ -333,6 +334,72 @@ export async function branchExists(
     options
   );
   return result.exitCode === 0;
+}
+
+export interface BranchCleanupResult {
+  localDeleted: boolean;
+  remoteDeleted: boolean;
+  error?: string;
+}
+
+export async function cleanupBranch(
+  branchName: string,
+  baseBranch: string,
+  options: GitOptions & { deleteRemote?: boolean }
+): Promise<BranchCleanupResult> {
+  const { logger, dryRun = false, deleteRemote = true } = options;
+  const result: BranchCleanupResult = {
+    localDeleted: false,
+    remoteDeleted: false,
+  };
+
+  if (dryRun) {
+    logger.info(`[dry-run] Would delete branch: ${branchName}`);
+    if (deleteRemote) {
+      logger.info(`[dry-run] Would delete remote branch: origin/${branchName}`);
+    }
+    return { localDeleted: true, remoteDeleted: deleteRemote };
+  }
+
+  const currentBranch = await getCurrentBranch(options);
+  if (currentBranch === branchName) {
+    logger.info(`Currently on ${branchName}, checking out ${baseBranch} first`);
+    const checkoutResult = await runGitCommand(["checkout", baseBranch], options);
+    if (checkoutResult.exitCode !== 0) {
+      result.error = `Failed to checkout ${baseBranch} before deleting branch`;
+      return result;
+    }
+  }
+
+  const exists = await branchExists(branchName, options);
+  if (exists) {
+    const deleteResult = await runGitCommand(["branch", "-D", branchName], options);
+    if (deleteResult.exitCode === 0) {
+      result.localDeleted = true;
+      logger.info(`Deleted local branch: ${branchName}`);
+    } else {
+      logger.warn(`Failed to delete local branch ${branchName}`);
+    }
+  } else {
+    logger.debug(`Local branch ${branchName} does not exist, skipping local delete`);
+    result.localDeleted = true;
+  }
+
+  if (deleteRemote) {
+    const remoteDeleteResult = await runGitCommand(
+      ["push", "origin", "--delete", branchName],
+      options
+    );
+    if (remoteDeleteResult.exitCode === 0) {
+      result.remoteDeleted = true;
+      logger.info(`Deleted remote branch: origin/${branchName}`);
+    } else {
+      logger.debug(`Remote branch origin/${branchName} may not exist or already deleted`);
+      result.remoteDeleted = true;
+    }
+  }
+
+  return result;
 }
 
 export async function ensureBranch(

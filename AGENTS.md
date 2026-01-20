@@ -1,6 +1,27 @@
-# AGENTS.md – Wreckit CLI
+# Wreckit Agent Guidelines
+
+## Specifications
+
+**IMPORTANT:** Before implementing any feature, consult the specifications in `specs/README.md`.
+
+- **Assume NOT implemented.** Many specs describe planned features that may not yet exist in the codebase.
+- **Check the codebase first.** Before concluding something is or isn't implemented, search the actual code. Specs describe intent; code describes reality.
+- **Use specs as guidance.** When implementing a feature, follow the design patterns, types, and architecture defined in the relevant spec.
+- **Spec index:** `specs/README.md` lists all specifications organized by phase.
 
 ## Commands
+
+### Building & Testing
+
+| Command | Does |
+|---------|------|
+| `bun build` | Build the CLI |
+| `bun test` | Run all tests |
+| `bun test src/__tests__/foo.test.ts` | Run single test file |
+| `bun run typecheck` | Type check the codebase |
+| `bun run lint` | Lint the codebase |
+
+### CLI Commands
 
 | Command | Does |
 |---------|------|
@@ -13,6 +34,7 @@
 | `wreckit show <id>` | Show item details |
 | `wreckit init` | Initialize `.wreckit/` in repo |
 | `wreckit doctor` | Validate items, fix broken state |
+| `wreckit rollback <id>` | Rollback a direct-merge item to pre-merge state |
 
 ### Phase Commands (debugging)
 
@@ -24,7 +46,7 @@
 | `wreckit pr <id>` | implementing → in_pr |
 | `wreckit complete <id>` | in_pr → done |
 
-## Flags
+### Flags
 
 - `--verbose` — More logs
 - `--quiet` — Errors only
@@ -41,21 +63,18 @@
 idea → researched → planned → implementing → in_pr → done
 ```
 
-## Testing
+## Architecture
 
-```bash
-bun test                           # All tests
-bun test src/__tests__/foo.test.ts # Single file
-```
-
-## Key Files
+TypeScript CLI built with Bun. Key directories:
 
 - `src/index.ts` — CLI entry, commands
 - `src/domain/` — State machine, item indexing
 - `src/commands/` — Phase handlers
-- `src/agent/` — Agent subprocess
-- `src/git/` — Git ops
+- `src/agent/` — Agent subprocess and SDK integration
+- `src/agent/mcp/` — MCP server for structured output
+- `src/git/` — Git operations
 - `src/fs/paths.ts` — Path helpers (items stored in `.wreckit/items/`)
+- `specs/` — Feature specifications
 
 ## Config
 
@@ -68,7 +87,8 @@ bun test src/__tests__/foo.test.ts # Single file
   "merge_mode": "pr",
   "agent": {"command": "amp", "args": ["--dangerously-allow-all"]},
   "max_iterations": 100,
-  "timeout_seconds": 3600
+  "timeout_seconds": 3600,
+  "branch_cleanup": {"enabled": true, "delete_remote": true}
 }
 ```
 
@@ -105,6 +125,17 @@ When `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` are set, `ANTHROPIC_API_KEY
 - `0` — Success
 - `1` — Error
 - `130` — Interrupted
+
+## Code Style
+
+- **Formatting:** Use Prettier defaults (run `bun run lint` to check)
+- **Errors:** Use custom error classes extending `Error`. Propagate with descriptive messages.
+- **Async:** Use async/await. Avoid callbacks.
+- **Imports:** Group by external packages, then internal modules.
+- **Naming:** camelCase for functions/variables, PascalCase for types/classes, SCREAMING_CASE for constants.
+- **No comments** unless code is complex and requires context for future developers.
+- **Testing:** Use Bun's built-in test runner. Tests go in `src/__tests__/`.
+- **Logging:** Use structured logging. Never log secrets directly.
 
 ## Claude Agent SDK Patterns
 
@@ -160,3 +191,9 @@ const server = createWreckitMcpServer({
 | `update_story_status` | Implement | Mark a story as done (replaces editing prd.json directly) |
 
 Prompt the agent to call MCP tools instead of outputting JSON directly or editing JSON files.
+
+## Design Principles
+
+- When multiple code paths do similar things with slight variations, create a shared service with a request struct that captures the variations, rather than having each caller implement its own logic.
+- Prefer composition over inheritance.
+- Keep functions small and focused on a single responsibility.

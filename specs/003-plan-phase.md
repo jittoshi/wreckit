@@ -286,39 +286,52 @@ Use `wreckit plan <id> --force` to:
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Core plan phase** | ✅ Implemented | See `src/workflow/itemWorkflow.ts:runPhasePlan` |
+| **Prompt template loading** | ✅ Implemented | Project overrides in `.wreckit/prompts/plan.md` |
+| **Template variable substitution** | ✅ Implemented | All variables including `{{research}}` |
+| **Artifact validation (exists)** | ✅ Implemented | Checks `plan.md` and `prd.json` exist |
+| **PRD schema validation** | ✅ Implemented | Zod schema in `src/schemas.ts` |
+| **Skip if artifacts exist** | ✅ Implemented | `--force` flag to regenerate |
+| **Tool allowlist (read + write)** | ✅ Implemented | See `src/agent/toolAllowlist.ts` |
+| **Git status comparison (write containment)** | ✅ Implemented | Before/after status comparison blocks violations |
+| **Plan quality validation** | ✅ Implemented | See `src/domain/validation.ts:validatePlanQuality` |
+| **Story quality validation** | ✅ Implemented | See `src/domain/validation.ts:validateStoryQuality` |
+| **MCP tool: save_prd** | ✅ Implemented | See `src/agent/mcp/wreckitMcpServer.ts` |
+| **State transitions** | ✅ Implemented | `researched` → `planned` on success |
+| **Error handling** | ✅ Implemented | `last_error` set on failure |
+| **Dry-run mode** | ✅ Implemented | `--dry-run` flag works |
+
+---
+
 ## Known Gaps
 
-### Gap 1: No Programmatic Design-Only Enforcement
+### Gap 1: No Programmatic Design-Only Enforcement ✅ FIXED
 
-The plan phase relies entirely on prompt instructions to prevent code changes. If the agent ignores instructions and modifies files, the phase will still succeed.
+~~The plan phase relies entirely on prompt instructions to prevent code changes.~~
 
-**Impact:** Unintended changes propagate to PR phase and get committed.
+**Status:** Fixed - Git status comparison before/after planning detects and blocks violations. See `getGitStatus()` and `compareGitStatus()` in `src/git/index.ts`.
 
-**Mitigation:** Implement git status comparison before/after planning to detect and block violations.
+### Gap 2: No Plan Content Quality Validation ✅ FIXED
 
-### Gap 2: No Plan Content Quality Validation
+~~The system only checks that `plan.md` exists, not that it contains required sections.~~
 
-The system only checks that `plan.md` exists, not that it contains required sections or follows the template structure.
+**Status:** Fixed - Plan quality validation implemented in `src/domain/validation.ts:validatePlanQuality()`. Checks required sections, file references, and structure.
 
-**Impact:** Incomplete or poorly structured plans can pass validation.
+### Gap 3: No Story Quality Validation ✅ FIXED
 
-**Mitigation:** Parse plan.md and require key headings (`## Current State`, `## Desired End State`, `## What We're NOT Doing`, etc.).
+~~The system validates PRD schema but not story quality.~~
 
-### Gap 3: No Story Quality Validation
+**Status:** Fixed - Story quality validation implemented in `src/domain/validation.ts:validateStoryQuality()`. Validates minimum acceptance criteria, story ID format, and priority ranges.
 
-The system validates PRD schema but not story quality. Stories with vague goals, untestable criteria, or wrong scope can pass.
+### Gap 4: Schema Version Inconsistency ✅ FIXED
 
-**Impact:** Poor stories lead to poor implementation.
+~~MCP tool submissions enforce `schema_version: 1` strictly, but direct file writes accept any number.~~
 
-**Mitigation:** Validate minimum acceptance criteria count, story ID format, and priority ranges.
-
-### Gap 4: Schema Version Inconsistency
-
-MCP tool submissions enforce `schema_version: 1` strictly, but direct file writes accept any number.
-
-**Impact:** Inconsistent validation depending on how PRD was created.
-
-**Mitigation:** Align file schema validation to require `schema_version: 1` exactly.
+**Status:** Fixed - Both MCP and direct file validation require `schema_version: 1`.
 
 ---
 

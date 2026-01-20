@@ -324,23 +324,51 @@ For testing, `--mock-agent` simulates agent responses:
 
 ---
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Process mode** | ✅ Implemented | See `src/agent/runner.ts` |
+| **Claude SDK mode** | ✅ Implemented | See `src/agent/claude-sdk-runner.ts` |
+| **Amp SDK mode** | ✅ Implemented | See `src/agent/amp-sdk-runner.ts` |
+| **Codex SDK mode** | 🔶 Experimental | See `src/agent/codex-sdk-runner.ts` |
+| **OpenCode SDK mode** | 🔶 Experimental | See `src/agent/opencode-sdk-runner.ts` |
+| **MCP server** | ✅ Implemented | See `src/agent/mcp/wreckitMcpServer.ts` |
+| **Tool: save_interview_ideas** | ✅ Implemented | Ideas phase |
+| **Tool: save_parsed_ideas** | ✅ Implemented | Ideas phase |
+| **Tool: save_prd** | ✅ Implemented | Plan phase |
+| **Tool: update_story_status** | ✅ Implemented | Implement phase |
+| **Tool allowlisting** | ✅ Implemented | See `src/agent/toolAllowlist.ts` |
+| **Per-phase tool restrictions** | ✅ Implemented | All phases have allowlists |
+| **Prompt rendering** | ✅ Implemented | See `src/prompts.ts` |
+| **Template variables** | ✅ Implemented | All variables in spec |
+| **Conditionals** | ✅ Implemented | `{{#if var}}...{{/if}}` syntax |
+| **Completion detection** | ✅ Implemented | Signal-based for process, event-based for SDK |
+| **Timeout enforcement** | ✅ Implemented | Configurable `timeout_seconds` |
+| **Environment variable resolution** | ✅ Implemented | See `src/agent/env.ts` |
+| **Mock agent** | ✅ Implemented | `--mock-agent` flag |
+
+---
+
 ## Known Gaps
 
-### Gap 1: No Enforcement for Non-Ideas Phases
+### Gap 1: No Enforcement for Non-Ideas Phases ✅ FIXED
 
-Tool allowlisting is only enforced for the ideas phase. Other phases rely on prompt instructions.
+~~Tool allowlisting is only enforced for the ideas phase.~~
 
-**Impact:** Agents can make unintended changes during research/plan.
+**Status:** Fixed - All phases now have tool allowlists. See `src/agent/toolAllowlist.ts`:
+- `idea`: MCP tools only
+- `research`: Read, Glob, Grep (read-only)
+- `plan`: Read, Write, Edit, Glob, Grep, save_prd
+- `implement`: Full access + update_story_status
+- `pr`: Read, Glob, Grep, Bash
+- `complete`: Read, Glob, Grep, wreckit_complete
 
-**Fix:** Implement tool restrictions per phase (read-only for research/plan).
+### Gap 2: Extra MCP Tools Registered ✅ FIXED
 
-### Gap 2: Extra MCP Tools Registered
+~~The MCP server registers all tools even when only a subset should be available.~~
 
-The MCP server registers all tools even when only a subset should be available.
-
-**Impact:** Increases blast radius if allowlist enforcement fails.
-
-**Fix:** Create phase-specific MCP servers with only relevant tools.
+**Status:** Fixed - Ideas phase uses dedicated `ideasMcpServer.ts`. Tool allowlist enforcement at SDK layer blocks unauthorized tools.
 
 ### Gap 3: No Structured Completion Verification
 
@@ -348,7 +376,7 @@ Completion is based on signal/exit code, not verification that expected work was
 
 **Impact:** Agent can signal completion without producing artifacts.
 
-**Fix:** Phase-level artifact validation (already exists, but not tied to completion).
+**Status:** Open - Phase-level artifact validation exists but is separate from completion detection.
 
 ---
 

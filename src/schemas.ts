@@ -23,6 +23,11 @@ export const PrChecksSchema = z.object({
   allowed_remote_patterns: z.array(z.string()).default([]),
 });
 
+export const BranchCleanupSchema = z.object({
+  enabled: z.boolean().default(true),
+  delete_remote: z.boolean().default(true),
+});
+
 export const ConfigSchema = z.object({
   schema_version: z.number().default(1),
   base_branch: z.string().default("main"),
@@ -37,6 +42,7 @@ export const ConfigSchema = z.object({
   max_iterations: z.number().default(100),
   timeout_seconds: z.number().default(3600),
   pr_checks: PrChecksSchema.optional(),
+  branch_cleanup: BranchCleanupSchema.optional(),
 });
 
 export const PriorityHintSchema = z.enum(["low", "medium", "high", "critical"]);

@@ -789,3 +789,68 @@ export function validateStoryQuality(
     errors,
   };
 }
+
+/**
+ * Result of story completion verification
+ */
+export interface StoryCompletionVerification {
+  valid: boolean;
+  storyId: string;
+  warnings: string[];
+  errors: string[];
+}
+
+/**
+ * Verify that a story's acceptance criteria are reasonably addressed before marking it done.
+ *
+ * Per 004-implement-phase.md Gap 1, we should verify:
+ * 1. The story exists in the PRD
+ * 2. The story has acceptance criteria defined
+ * 3. (Future) Tests pass, code changes exist, etc.
+ *
+ * This verification is non-blocking by design - it logs warnings but does not prevent
+ * the story from being marked done. This avoids breaking existing flows while providing
+ * visibility into potential issues.
+ *
+ * @param storyId - The story ID being marked as done
+ * @param prd - The current PRD
+ * @returns Verification result with warnings and errors
+ */
+export function verifyStoryCompletion(
+  storyId: string,
+  prd: { user_stories: Array<{ id: string; title: string; acceptance_criteria: string[]; status: string }> } | null
+): StoryCompletionVerification {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  if (!prd) {
+    errors.push(`Cannot verify story ${storyId}: PRD not loaded`);
+    return { valid: false, storyId, warnings, errors };
+  }
+
+  const story = prd.user_stories.find((s) => s.id === storyId);
+  if (!story) {
+    errors.push(`Story ${storyId} not found in PRD`);
+    return { valid: false, storyId, warnings, errors };
+  }
+
+  if (!story.acceptance_criteria || story.acceptance_criteria.length === 0) {
+    warnings.push(`Story ${storyId} has no acceptance criteria defined`);
+  }
+
+  const emptyCriteria = story.acceptance_criteria.filter((c) => !c || c.trim().length === 0);
+  if (emptyCriteria.length > 0) {
+    warnings.push(`Story ${storyId} has ${emptyCriteria.length} empty acceptance criteria`);
+  }
+
+  if (story.status === "done") {
+    warnings.push(`Story ${storyId} is already marked as done`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    storyId,
+    warnings,
+    errors,
+  };
+}

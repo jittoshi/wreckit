@@ -14,7 +14,8 @@ import { runCommand } from "./commands/run";
 import { orchestrateAll, orchestrateNext } from "./commands/orchestrator";
 import { doctorCommand } from "./commands/doctor";
 import { initCommand } from "./commands/init";
-import { sdkInfoCommand } from "./commands/sdk-info";
+import { rollbackCommand } from "./commands/rollback";
+// import { sdkInfoCommand } from "./commands/sdk-info";
 import { runOnboardingIfNeeded } from "./onboarding";
 import { resolveId } from "./domain/resolveId";
 import { findRepoRoot, resolveCwd } from "./fs/paths";
@@ -353,6 +354,40 @@ program
   });
 
 program
+  .command("rollback <id>")
+  .description("Rollback a direct-merge item to its pre-merge state")
+  .option("--force", "Force rollback even if item is not in 'done' state")
+  .action(async (id, options, cmd) => {
+    const globalOpts = cmd.optsWithGlobals();
+    await executeCommand(
+      async () => {
+        const cwd = resolveCwd(globalOpts.cwd);
+        const root = findRepoRoot(cwd);
+        const resolvedId = await resolveId(root, id);
+        const result = await rollbackCommand(
+          resolvedId,
+          {
+            force: options.force,
+            dryRun: globalOpts.dryRun,
+            cwd,
+          },
+          logger
+        );
+        if (!result.success) {
+          throw new Error(result.error ?? "Rollback failed");
+        }
+      },
+      logger,
+      {
+        verbose: globalOpts.verbose,
+        quiet: globalOpts.quiet,
+        dryRun: globalOpts.dryRun,
+        cwd: resolveCwd(globalOpts.cwd),
+      }
+    );
+  });
+
+program
   .command("run <id>")
   .description("Run single item through all phases until done")
   .option("--force", "Regenerate artifacts even if they exist")
@@ -477,22 +512,22 @@ program
     );
   });
 
-program
-  .command("sdk-info")
-  .description("Display Claude SDK configuration and account info")
-  .action(async (_options, cmd) => {
-    const globalOpts = cmd.optsWithGlobals();
-    await executeCommand(
-      async () => {
-        await sdkInfoCommand({}, logger);
-      },
-      logger,
-      {
-        verbose: globalOpts.verbose,
-        quiet: globalOpts.quiet,
-      }
-    );
-  });
+// program
+//   .command("sdk-info")
+//   .description("Display Claude SDK configuration and account info")
+//   .action(async (_options, cmd) => {
+//     const globalOpts = cmd.optsWithGlobals();
+//     await executeCommand(
+//       async () => {
+//         await sdkInfoCommand({}, logger);
+//       },
+//       logger,
+//       {
+//         verbose: globalOpts.verbose,
+//         quiet: globalOpts.quiet,
+//       }
+//     );
+//   });
 
 async function main(): Promise<void> {
   setupInterruptHandler(logger);

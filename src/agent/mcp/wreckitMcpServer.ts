@@ -2,6 +2,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { ParsedIdea } from "../../domain/ideas";
 import type { Prd, Story, StoryStatus } from "../../schemas";
+import { verifyStoryCompletion, type StoryCompletionVerification } from "../../domain/validation";
 
 export const ParsedIdeaSchema = z.object({
   title: z.string().describe("Concise title under 60 characters"),
@@ -39,7 +40,8 @@ export interface WreckitMcpHandlers {
   onInterviewIdeas?: (ideas: ParsedIdea[]) => void;
   onParsedIdeas?: (ideas: ParsedIdea[]) => void;
   onSavePrd?: (prd: Prd) => void;
-  onUpdateStoryStatus?: (storyId: string, status: StoryStatus) => void;
+  onUpdateStoryStatus?: (storyId: string, status: StoryStatus, verification: StoryCompletionVerification | null) => void;
+  getPrd?: () => Prd | null;
 }
 
 export function createWreckitMcpServer(handlers: WreckitMcpHandlers = {}) {
@@ -107,11 +109,28 @@ export function createWreckitMcpServer(handlers: WreckitMcpHandlers = {}) {
         },
         async (args) => {
           const { story_id, status } = args;
-          handlers.onUpdateStoryStatus?.(story_id, status as StoryStatus);
+
+          let verification: StoryCompletionVerification | null = null;
+          let responseText = `Updated story ${story_id} status to '${status}'.`;
+
+          if (status === "done") {
+            const prd = handlers.getPrd?.() ?? null;
+            verification = verifyStoryCompletion(story_id, prd);
+
+            if (verification.warnings.length > 0) {
+              responseText += `\n\nVerification warnings:\n${verification.warnings.map(w => `- ${w}`).join("\n")}`;
+            }
+            if (verification.errors.length > 0) {
+              responseText += `\n\nVerification errors:\n${verification.errors.map(e => `- ${e}`).join("\n")}`;
+            }
+          }
+
+          handlers.onUpdateStoryStatus?.(story_id, status as StoryStatus, verification);
+
           return {
             content: [{
               type: "text" as const,
-              text: `Updated story ${story_id} status to '${status}'.`,
+              text: responseText,
             }],
           };
         }
