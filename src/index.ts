@@ -37,6 +37,7 @@ program
     "--mock-agent",
     "Simulate agent responses without calling the real agent"
   )
+  .option("--parallel <n>", "Process N items in parallel (default: 1)", "1")
   .option("--cwd <path>", "Override the working directory");
 
 program.action(async () => {
@@ -62,6 +63,7 @@ program.action(async () => {
           tuiDebug: opts.tuiDebug,
           cwd: resolveCwd(opts.cwd),
           mockAgent: opts.mockAgent,
+          parallel: parseInt(opts.parallel, 10) || 1,
         },
         logger
       );

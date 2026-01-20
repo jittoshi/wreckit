@@ -18,43 +18,64 @@ import {
 } from "../schemas";
 import { getConfigPath, getIndexPath } from "./paths";
 import { safeWriteJson } from "./atomic";
+import { FileLock, withRetry } from "./lock";
 
 export async function readJsonWithSchema<T>(
   filePath: string,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T>,
+  options?: { useLock?: boolean }
 ): Promise<T> {
-  let content: string;
-  try {
-    content = await fs.readFile(filePath, "utf-8");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new FileNotFoundError(`File not found: ${filePath}`);
+  const readImpl = async (): Promise<T> => {
+    let content: string;
+    try {
+      content = await fs.readFile(filePath, "utf-8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new FileNotFoundError(`File not found: ${filePath}`);
+      }
+      throw err;
     }
-    throw err;
+
+    let data: unknown;
+    try {
+      data = JSON.parse(content);
+    } catch {
+      throw new InvalidJsonError(`Invalid JSON in file: ${filePath}`);
+    }
+
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      throw new SchemaValidationError(
+        `Schema validation failed for ${filePath}: ${result.error.message}`
+      );
+    }
+
+    return result.data;
+  };
+
+  // Use shared lock for concurrent-safe reads if requested
+  if (options?.useLock) {
+    return FileLock.withSharedLock(filePath, readImpl);
   }
 
-  let data: unknown;
-  try {
-    data = JSON.parse(content);
-  } catch {
-    throw new InvalidJsonError(`Invalid JSON in file: ${filePath}`);
-  }
-
-  const result = schema.safeParse(data);
-  if (!result.success) {
-    throw new SchemaValidationError(
-      `Schema validation failed for ${filePath}: ${result.error.message}`
-    );
-  }
-
-  return result.data;
+  return readImpl();
 }
 
 export async function writeJsonPretty(
   filePath: string,
-  data: unknown
+  data: unknown,
+  options?: { useLock?: boolean }
 ): Promise<void> {
-  await safeWriteJson(filePath, data);
+  const writeImpl = async (): Promise<void> => {
+    await safeWriteJson(filePath, data);
+  };
+
+  // Use exclusive lock for concurrent-safe writes if requested
+  if (options?.useLock) {
+    await withRetry(() => FileLock.withExclusiveLock(filePath, writeImpl));
+  } else {
+    await writeImpl();
+  }
 }
 
 export async function readConfig(root: string): Promise<Config> {
@@ -68,7 +89,7 @@ export async function readItem(itemDir: string): Promise<Item> {
 
 export async function writeItem(itemDir: string, item: Item): Promise<void> {
   const itemPath = path.join(itemDir, "item.json");
-  await writeJsonPretty(itemPath, item);
+  await writeJsonPretty(itemPath, item, { useLock: true });
 }
 
 export async function readPrd(itemDir: string): Promise<Prd> {
@@ -78,7 +99,7 @@ export async function readPrd(itemDir: string): Promise<Prd> {
 
 export async function writePrd(itemDir: string, prd: Prd): Promise<void> {
   const prdPath = path.join(itemDir, "prd.json");
-  await writeJsonPretty(prdPath, prd);
+  await writeJsonPretty(prdPath, prd, { useLock: true });
 }
 
 export async function readIndex(root: string): Promise<Index | null> {
@@ -93,5 +114,5 @@ export async function readIndex(root: string): Promise<Index | null> {
 }
 
 export async function writeIndex(root: string, index: Index): Promise<void> {
-  await writeJsonPretty(getIndexPath(root), index);
+  await writeJsonPretty(getIndexPath(root), index, { useLock: true });
 }

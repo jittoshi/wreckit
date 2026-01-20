@@ -2,6 +2,7 @@ import type { Logger } from "../logging";
 import type { AgentResult } from "./runner";
 import type { OpenCodeSdkAgentConfig } from "../schemas";
 import type { AgentEvent } from "../tui/agentEvents";
+import { getAllowedToolsForPhase } from "./toolAllowlist";
 
 export interface OpenCodeRunAgentOptions {
   config: OpenCodeSdkAgentConfig;
@@ -12,15 +13,49 @@ export interface OpenCodeRunAgentOptions {
   onStdoutChunk?: (chunk: string) => void;
   onStderrChunk?: (chunk: string) => void;
   onAgentEvent?: (event: AgentEvent) => void;
+  /** Restrict agent to only specific tools (e.g., MCP tools). Prevents use of Read, Write, Bash, etc. */
+  allowedTools?: string[];
+  /** Current workflow phase for tool allowlist enforcement (Spec 008 Gap 1) */
+  phase?: string;
+}
+
+/**
+ * Get the effective tool allowlist for OpenCode SDK agent.
+ *
+ * Per Spec 008 Gap 1: "No Enforcement for Non-Ideas Phases"
+ * The tool allowlist must be enforced for all SDK runners, not just claude_sdk.
+ *
+ * Priority:
+ * 1. Explicit allowedTools from options (highest priority)
+ * 2. Phase-based allowlist from toolAllowlist.ts (if phase specified)
+ * 3. undefined (no restrictions - default SDK behavior)
+ */
+function getEffectiveToolAllowlist(options: OpenCodeRunAgentOptions): string[] | undefined {
+  // Explicit allowedTools takes precedence
+  if (options.allowedTools !== undefined) {
+    return options.allowedTools;
+  }
+
+  // Fall back to phase-based allowlist if phase is specified
+  if (options.phase) {
+    return getAllowedToolsForPhase(options.phase);
+  }
+
+  // No restrictions
+  return undefined;
 }
 
 export async function runOpenCodeSdkAgent(
   options: OpenCodeRunAgentOptions
 ): Promise<AgentResult> {
-  const { logger, dryRun } = options;
+  const { logger, dryRun, config } = options;
 
   if (dryRun) {
     logger.info("[dry-run] Would run OpenCode SDK agent");
+    const effectiveTools = getEffectiveToolAllowlist(options);
+    if (effectiveTools) {
+      logger.debug(`[dry-run] Tool restrictions: ${effectiveTools.join(", ")}`);
+    }
     return {
       success: true,
       output: "[dry-run] OpenCode SDK agent not executed",
@@ -30,7 +65,12 @@ export async function runOpenCodeSdkAgent(
     };
   }
 
-  // TODO: Implement OpenCode SDK integration
+  // TODO: Implement OpenCode SDK integration with tool allowlist enforcement
+  const effectiveTools = getEffectiveToolAllowlist(options);
+  if (effectiveTools) {
+    logger.info(`Tool restrictions active: ${effectiveTools.join(", ")}`);
+  }
+
   logger.error("OpenCode SDK runner not yet implemented");
   return {
     success: false,

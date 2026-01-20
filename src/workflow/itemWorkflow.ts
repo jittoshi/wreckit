@@ -31,6 +31,7 @@ import {
   type PromptVariables,
 } from "../prompts";
 import { runAgent, getAgentConfig } from "../agent/runner";
+import { getAllowedToolsForPhase } from "../agent/toolAllowlist";
 import {
   ensureBranch,
   hasUncommittedChanges,
@@ -51,6 +52,7 @@ import {
   runPrePushQualityGates,
   checkPrMergeability,
   validateRemoteUrl,
+  runGitCommand,
   type PrMergeabilityResult,
   type GitPreflightError,
   type GitFileChange,
@@ -226,6 +228,8 @@ export async function runPhaseResearch(
     onStdoutChunk: onAgentOutput,
     onStderrChunk: onAgentOutput,
     onAgentEvent,
+    // Restrict to read-only tools for research phase
+    allowedTools: getAllowedToolsForPhase("research"),
   });
 
   if (dryRun) {
@@ -373,6 +377,8 @@ export async function runPhasePlan(
     onStderrChunk: onAgentOutput,
     onAgentEvent,
     mcpServers: { wreckit: wreckitServer },
+    // Restrict to read+write tools for plan phase
+    allowedTools: getAllowedToolsForPhase("plan"),
   });
 
   if (dryRun) {
@@ -537,6 +543,8 @@ export async function runPhaseImplement(
       onStdoutChunk: onAgentOutput,
       onStderrChunk: onAgentOutput,
       onAgentEvent,
+      // Allow full tool access for implement phase
+      allowedTools: getAllowedToolsForPhase("implement"),
     });
     return { success: true, item };
   }
@@ -608,6 +616,8 @@ export async function runPhaseImplement(
       onStderrChunk: onAgentOutput,
       onAgentEvent,
       mcpServers: { wreckit: wreckitServer },
+      // Allow full tool access for implement phase
+      allowedTools: getAllowedToolsForPhase("implement"),
     });
 
     if (dryRun) {
@@ -947,6 +957,53 @@ export async function runPhasePr(
         commitMessage,
         gitOptions
       );
+
+      // Verify merge landed on remote (Spec 006 Gap 2: Direct Mode Verification)
+      // Fetch the remote state to confirm the merge is visible on the remote
+      if (!dryRun) {
+        try {
+          // Fetch the remote base branch to verify our merge is there
+          await runGitCommand(["fetch", "origin", config.base_branch], gitOptions);
+
+          // Get the local HEAD SHA
+          const localHeadResult = await runGitCommand(
+            ["rev-parse", config.base_branch],
+            gitOptions
+          );
+          if (localHeadResult.exitCode !== 0) {
+            throw new Error("Failed to get local HEAD SHA");
+          }
+          const localHeadSha = localHeadResult.stdout.trim();
+
+          // Get the remote HEAD SHA
+          const remoteHeadResult = await runGitCommand(
+            ["rev-parse", `origin/${config.base_branch}`],
+            gitOptions
+          );
+          if (remoteHeadResult.exitCode !== 0) {
+            throw new Error("Failed to get remote HEAD SHA");
+          }
+          const remoteHeadSha = remoteHeadResult.stdout.trim();
+
+          // Verify they match
+          if (localHeadSha !== remoteHeadSha) {
+            throw new Error(
+              `Merge verification failed: local HEAD (${localHeadSha}) does not match remote HEAD (${remoteHeadSha}). ` +
+              `The merge may not have been pushed to the remote.`
+            );
+          }
+
+          logger.info(
+            `Direct merge verified: local and remote ${config.base_branch} both at ${localHeadSha}`
+          );
+        } catch (verifyErr) {
+          const verifyError = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+          logger.error(`Direct merge verification failed: ${verifyError}`);
+          item = { ...item, last_error: `Merge verification failed: ${verifyError}` };
+          await saveItem(root, item);
+          return { success: false, item, error: `Merge verification failed: ${verifyError}` };
+        }
+      }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       item = { ...item, last_error: error };
@@ -954,6 +1011,8 @@ export async function runPhasePr(
       return { success: false, item, error };
     }
 
+    // Record completion metadata (Spec 006 Gap 5: Audit Trail)
+    const completedAt = new Date().toISOString();
     item = {
       ...item,
       state: "done",
@@ -962,8 +1021,18 @@ export async function runPhasePr(
       pr_number: null,
       last_error: null,
       rollback_sha: rollbackSha,
+      completed_at: completedAt,
     };
     await saveItem(root, item);
+
+    // Log completion to progress.log (Spec 006 Gap 5: Audit Trail)
+    const progressPath = getProgressLogPath(root, item.id);
+    const logEntry = `[${completedAt}] Completed: Direct merge to ${config.base_branch}\n`;
+    if (rollbackSha) {
+      await fs.appendFile(progressPath, `${logEntry}Rollback SHA: ${rollbackSha}\n`, "utf-8");
+    } else {
+      await fs.appendFile(progressPath, logEntry, "utf-8");
+    }
 
     logger.info(
       `Merged ${itemId} directly to ${config.base_branch} (direct mode)` +
@@ -1003,6 +1072,8 @@ export async function runPhasePr(
         onStdoutChunk: onAgentOutput,
         onStderrChunk: onAgentOutput,
         onAgentEvent,
+        // Restrict to read + bash tools for PR phase
+        allowedTools: getAllowedToolsForPhase("pr"),
       });
 
       if (result.success) {

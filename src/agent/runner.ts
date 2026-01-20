@@ -303,6 +303,8 @@ export interface UnionRunAgentOptions {
   onStdoutChunk?: (chunk: string) => void;
   onStderrChunk?: (chunk: string) => void;
   onAgentEvent?: (event: AgentEvent) => void;
+  /** Restrict agent to only specific tools (e.g., MCP tools). Prevents use of Read, Write, Bash, etc. */
+  allowedTools?: string[];
 }
 
 function exhaustiveCheck(x: never): never {
@@ -374,6 +376,7 @@ export async function runAgentUnion(options: UnionRunAgentOptions): Promise<Agen
         mockAgent: options.mockAgent,
         onStdoutChunk: options.onStdoutChunk,
         onStderrChunk: options.onStderrChunk,
+        allowedTools: options.allowedTools,
       };
       return runProcessAgent(legacyOptions);
     }
@@ -398,6 +401,7 @@ export async function runAgentUnion(options: UnionRunAgentOptions): Promise<Agen
         mockAgent: options.mockAgent,
         onStdoutChunk: options.onStdoutChunk,
         onStderrChunk: options.onStderrChunk,
+        allowedTools: options.allowedTools,
       };
       return runClaudeSdkAgent(legacyOptions, legacyConfig);
     }
@@ -412,6 +416,7 @@ export async function runAgentUnion(options: UnionRunAgentOptions): Promise<Agen
         dryRun: options.dryRun,
         onStdoutChunk: options.onStdoutChunk,
         onStderrChunk: options.onStderrChunk,
+        allowedTools: options.allowedTools,
       });
     }
 
@@ -425,6 +430,7 @@ export async function runAgentUnion(options: UnionRunAgentOptions): Promise<Agen
         dryRun: options.dryRun,
         onStdoutChunk: options.onStdoutChunk,
         onStderrChunk: options.onStderrChunk,
+        allowedTools: options.allowedTools,
       });
     }
 
@@ -438,6 +444,7 @@ export async function runAgentUnion(options: UnionRunAgentOptions): Promise<Agen
         dryRun: options.dryRun,
         onStdoutChunk: options.onStdoutChunk,
         onStderrChunk: options.onStderrChunk,
+        allowedTools: options.allowedTools,
       });
     }
 

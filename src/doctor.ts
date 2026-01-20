@@ -20,6 +20,8 @@ import {
 import { pathExists } from "./fs/util";
 import { scanItems } from "./commands/status";
 import { initPromptTemplates } from "./prompts";
+import { writeItem, writeIndex } from "./fs/json";
+import { validateStoryQuality } from "./domain/validation";
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
 
@@ -193,6 +195,18 @@ async function diagnoseItem(
           fixable: false,
         });
       } else {
+        // Deep PRD validation (Spec 010 Gap 1: Deep PRD Validation)
+        const storyQuality = validateStoryQuality(prdResult.data);
+        if (!storyQuality.valid) {
+          diagnostics.push({
+            itemId,
+            severity: "warning",
+            code: "POOR_STORY_QUALITY",
+            message: `prd.json story quality issues: ${storyQuality.errors.join("; ")}`,
+            fixable: false,
+          });
+        }
+
         if (item.state === "implementing") {
           const pendingStories = prdResult.data.user_stories.filter(
             (s) => s.status === "pending"
@@ -383,8 +397,8 @@ export async function applyFixes(
             items,
             generated_at: new Date().toISOString(),
           };
-          const indexPath = getIndexPath(root);
-          await fs.writeFile(indexPath, JSON.stringify(index, null, 2) + "\n");
+          // Use writeIndex for proper locking
+          await writeIndex(root, index);
           fixed = true;
           message = "Rebuilt index.json";
         } catch (err) {
@@ -437,10 +451,8 @@ export async function applyFixes(
                 state: newState,
                 updated_at: new Date().toISOString(),
               };
-              await fs.writeFile(
-                itemJsonPath,
-                JSON.stringify(updatedItem, null, 2) + "\n"
-              );
+              // Use writeItem for proper locking
+              await writeItem(itemDir, updatedItem);
               fixed = true;
               message = `Reset state from '${item.state}' to '${newState}'`;
             } else {

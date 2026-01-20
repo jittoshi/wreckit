@@ -20,6 +20,8 @@ export interface OrchestratorOptions {
   tuiDebug?: boolean;
   cwd?: string;
   mockAgent?: boolean;
+  /** Maximum number of items to process concurrently (default: 1 for sequential) */
+  parallel?: number;
 }
 
 export interface OrchestratorResult {
@@ -40,7 +42,7 @@ export async function orchestrateAll(
   options: OrchestratorOptions,
   logger: Logger
 ): Promise<OrchestratorResult> {
-  const { force = false, dryRun = false, noTui = false, tuiDebug = false, cwd, mockAgent = false } = options;
+  const { force = false, dryRun = false, noTui = false, tuiDebug = false, cwd, mockAgent = false, parallel = 1 } = options;
 
   const root = findRootFromOptions(options);
   const config = await loadConfig(root);
@@ -79,7 +81,9 @@ export async function orchestrateAll(
     return result;
   }
 
-  const useTui = shouldUseTui(noTui);
+  // Parallel execution is not compatible with TUI
+  // Fall back to simple progress when parallel > 1
+  const useTui = shouldUseTui(noTui) && parallel <= 1;
   let view: TuiViewAdapter | null = null;
   const simpleProgress = useTui ? null : createSimpleProgress(logger);
 
@@ -113,57 +117,70 @@ export async function orchestrateAll(
     });
   }
 
-  for (let i = 0; i < nonDoneItems.length; i++) {
-    const item = nonDoneItems[i];
-
-    if (useTui && view) {
-      view.onActiveItemChanged(item.id);
-      view.onPhaseChanged(item.state);
-      view.onItemsChanged(items.map((it) => ({
-        id: it.id,
-        state: it.id === item.id ? "implementing" : it.state,
-        title: it.title,
-      })));
-    } else {
-      simpleProgress?.update(item.id, "starting");
-    }
-
-    try {
-      await runCommand(
-        item.id,
-        {
-          force,
-          dryRun: false,
-          mockAgent,
-          onAgentOutput: view ? (chunk) => view.onAgentEvent(item.id, { type: "assistant_text", text: chunk }) : undefined,
-          onAgentEvent: view ? (event: AgentEvent) => view.onAgentEvent(item.id, event) : undefined,
-          onIterationChanged: view ? (iteration, maxIterations) => view.onIterationChanged(iteration, maxIterations) : undefined,
-          onStoryChanged: view ? (story) => view.onStoryChanged(story) : undefined,
-          onPhaseChanged: view ? (phase) => view.onPhaseChanged(phase as any) : undefined,
-        },
-        logger
-      );
-      result.completed.push(item.id);
+  // Process items either sequentially or in parallel
+  if (parallel <= 1) {
+    // Sequential processing (original behavior)
+    for (let i = 0; i < nonDoneItems.length; i++) {
+      const item = nonDoneItems[i];
 
       if (useTui && view) {
+        view.onActiveItemChanged(item.id);
+        view.onPhaseChanged(item.state);
         view.onItemsChanged(items.map((it) => ({
           id: it.id,
-          state: it.id === item.id ? "done" : result.completed.includes(it.id) ? "done" : it.state,
+          state: it.id === item.id ? "implementing" : it.state,
           title: it.title,
         })));
       } else {
-        simpleProgress?.complete(item.id);
+        simpleProgress?.update(item.id, "starting");
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      result.failed.push(item.id);
 
-      if (useTui && view) {
-        view.onAgentEvent(item.id, { type: "error", message: `Failed ${item.id}: ${errorMessage}` });
-      } else {
-        simpleProgress?.fail(item.id, errorMessage);
+      try {
+        await runCommand(
+          item.id,
+          {
+            force,
+            dryRun: false,
+            mockAgent,
+            onAgentOutput: view ? (chunk) => view.onAgentEvent(item.id, { type: "assistant_text", text: chunk }) : undefined,
+            onAgentEvent: view ? (event: AgentEvent) => view.onAgentEvent(item.id, event) : undefined,
+            onIterationChanged: view ? (iteration, maxIterations) => view.onIterationChanged(iteration, maxIterations) : undefined,
+            onStoryChanged: view ? (story) => view.onStoryChanged(story) : undefined,
+            onPhaseChanged: view ? (phase) => view.onPhaseChanged(phase as any) : undefined,
+          },
+          logger
+        );
+        result.completed.push(item.id);
+
+        if (useTui && view) {
+          view.onItemsChanged(items.map((it) => ({
+            id: it.id,
+            state: it.id === item.id ? "done" : result.completed.includes(it.id) ? "done" : it.state,
+            title: it.title,
+          })));
+        } else {
+          simpleProgress?.complete(item.id);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        result.failed.push(item.id);
+
+        if (useTui && view) {
+          view.onAgentEvent(item.id, { type: "error", message: `Failed ${item.id}: ${errorMessage}` });
+        } else {
+          simpleProgress?.fail(item.id, errorMessage);
+        }
       }
     }
+  } else {
+    // Parallel processing using worker pool
+    const effectiveParallel = Math.max(1, Math.min(parallel, nonDoneItems.length));
+    logger.info(`Processing ${nonDoneItems.length} items with ${effectiveParallel} parallel workers`);
+    await processItemsParallel(
+      nonDoneItems,
+      { force, mockAgent, logger, root, simpleProgress, parallel: effectiveParallel },
+      result
+    );
   }
 
   if (view) {
@@ -172,6 +189,78 @@ export async function orchestrateAll(
   terminateAllAgents(logger);
 
   return result;
+}
+
+/**
+ * Process multiple items in parallel using a worker pool pattern.
+ *
+ * @param items - Items to process
+ * @param context - Processing context
+ * @param result - Result object to update
+ */
+async function processItemsParallel(
+  items: Array<{ id: string; state: string; title: string }>,
+  context: {
+    force: boolean;
+    mockAgent: boolean;
+    logger: Logger;
+    root: string;
+    simpleProgress: ReturnType<typeof createSimpleProgress>;
+    parallel: number;
+  },
+  result: OrchestratorResult
+): Promise<void> {
+  const { force, mockAgent, logger, root, simpleProgress, parallel } = context;
+
+  // Create a queue of items to process
+  const queue = [...items];
+
+  // Process items with concurrency control
+  const processNextItem = async (): Promise<void> => {
+    if (queue.length === 0) return;
+
+    const item = queue.shift();
+    if (!item) return;
+
+    simpleProgress?.update(item.id, "starting");
+
+    try {
+      await runCommand(
+        item.id,
+        {
+          force,
+          dryRun: false,
+          mockAgent,
+          cwd: root,
+        },
+        logger
+      );
+      result.completed.push(item.id);
+      simpleProgress?.complete(item.id);
+      logger.info(`✓ Completed ${item.id}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      result.failed.push(item.id);
+      simpleProgress?.fail(item.id, errorMessage);
+      logger.error(`✗ Failed ${item.id}: ${errorMessage}`);
+    }
+  };
+
+  // Worker function that keeps processing until queue is empty
+  const worker = async (): Promise<void> => {
+    while (queue.length > 0) {
+      await processNextItem();
+    }
+  };
+
+  // Create workers
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < parallel; i++) {
+    workers.push(worker());
+  }
+
+  // Wait for all workers to complete
+  await Promise.all(workers);
 }
 
 export async function orchestrateNext(
