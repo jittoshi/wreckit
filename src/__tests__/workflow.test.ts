@@ -37,16 +37,21 @@ const mockedCreateOrUpdatePr = vi.fn(() =>
   })
 );
 const mockedIsPrMerged = vi.fn(() => Promise.resolve(true));
-const mockedGetPrDetails = vi.fn(() =>
-  Promise.resolve({
-    merged: true,
-    querySucceeded: true,
-    baseRefName: "main",
-    headRefName: "wreckit/001-test-feature",
-    mergeCommitOid: "abc123def456",
-    mergedAt: "2024-01-15T10:30:00Z",
-    checksPassed: true,
-  })
+// Store real functions before mocking for git/index.test.ts to use
+const realGetPrDetails = gitModule.getPrDetails;
+const realCheckPrMergeability = gitModule.checkPrMergeability;
+const realCheckMergeConflicts = gitModule.checkMergeConflicts;
+
+// These mocks delegate to real implementations so git/index.test.ts can spy on runGhCommand
+// For workflow tests, we use mockImplementation to override behavior
+const mockedGetPrDetails = vi.fn().mockImplementation((prNumber: number, options: any) =>
+  realGetPrDetails(prNumber, options)
+);
+const mockedCheckMergeConflicts = vi.fn().mockImplementation((baseBranch: string, featureBranch: string, options: any) =>
+  realCheckMergeConflicts(baseBranch, featureBranch, options)
+);
+const mockedCheckPrMergeability = vi.fn().mockImplementation((prNumber: number, options: any) =>
+  realCheckPrMergeability(prNumber, options)
 );
 const mockedCheckGitPreflight = vi.fn(() =>
   Promise.resolve({ valid: true, errors: [] })
@@ -55,8 +60,6 @@ const mockedIsGitRepo = vi.fn(() => Promise.resolve(true));
 const mockedGetCurrentBranch = vi.fn(() => Promise.resolve("wreckit/001-test-feature"));
 const mockedGetBranchSha = vi.fn(() => Promise.resolve("abc123"));
 const mockedMergeAndPushToBase = vi.fn(() => Promise.resolve());
-const mockedCheckMergeConflicts = vi.fn(() => Promise.resolve({ hasConflicts: false }));
-const mockedCheckPrMergeability = vi.fn(() => Promise.resolve({ mergeable: true, determined: true }));
 const mockedValidateRemoteUrl = vi.fn(() => Promise.resolve({ valid: true, actualUrl: "https://github.com/example/repo", errors: [] }));
 const mockedRunPrePushQualityGates = vi.fn(() => Promise.resolve({ success: true, errors: [], skipped: [] }));
 

@@ -3,7 +3,6 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { Logger } from "../../logging";
-import { checkPrMergeability, checkMergeConflicts, getPrDetails, type PrDetails } from "../../git";
 
 function createMockLogger(): Logger {
   return {
@@ -15,17 +14,17 @@ function createMockLogger(): Logger {
   };
 }
 
-// Import the git module to spy on its internal function
-import * as gitModule from "../../git";
-
 describe("git/index", () => {
   let tempDir: string;
   let mockLogger: Logger;
   let runGhCommandSpy: ReturnType<typeof vi.spyOn>;
+  let gitModule: typeof import("../../git/index");
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "wreckit-git-test-"));
     mockLogger = createMockLogger();
+    // Import the git module
+    gitModule = await import("../../git/index");
     // Spy on the internal runGhCommand function
     runGhCommandSpy = vi.spyOn(gitModule, "runGhCommand");
   });
@@ -47,7 +46,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await checkPrMergeability(123, {
+      const result = await gitModule.checkPrMergeability(123, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -63,7 +62,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await checkPrMergeability(456, {
+      const result = await gitModule.checkPrMergeability(456, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -79,7 +78,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await checkPrMergeability(789, {
+      const result = await gitModule.checkPrMergeability(789, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -95,7 +94,7 @@ describe("git/index", () => {
         exitCode: 1,
       });
 
-      const result = await checkPrMergeability(999, {
+      const result = await gitModule.checkPrMergeability(999, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -112,7 +111,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await checkPrMergeability(111, {
+      const result = await gitModule.checkPrMergeability(111, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -124,7 +123,7 @@ describe("git/index", () => {
     });
 
     it("returns success in dryRun mode", async () => {
-      const result = await checkPrMergeability(222, {
+      const result = await gitModule.checkPrMergeability(222, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: true,
@@ -140,7 +139,7 @@ describe("git/index", () => {
 
   describe("checkMergeConflicts", () => {
     it("returns no conflicts in dryRun mode", async () => {
-      const result = await checkMergeConflicts("main", "feature-branch", {
+      const result = await gitModule.checkMergeConflicts("main", "feature-branch", {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: true,
@@ -152,7 +151,7 @@ describe("git/index", () => {
     });
 
     it("returns correct result structure", async () => {
-      const result = await checkMergeConflicts("main", "feature-branch", {
+      const result = await gitModule.checkMergeConflicts("main", "feature-branch", {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: true,
@@ -190,7 +189,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -218,7 +217,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -244,7 +243,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -266,7 +265,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -283,7 +282,7 @@ describe("git/index", () => {
         exitCode: 1,
       });
 
-      const result = await getPrDetails(999, {
+      const result = await gitModule.getPrDetails(999, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -302,7 +301,7 @@ describe("git/index", () => {
         exitCode: 1,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
@@ -314,7 +313,7 @@ describe("git/index", () => {
     });
 
     it("returns dry-run stub data", async () => {
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: true,
@@ -342,7 +341,7 @@ describe("git/index", () => {
         exitCode: 0,
       });
 
-      const result = await getPrDetails(42, {
+      const result = await gitModule.getPrDetails(42, {
         cwd: tempDir,
         logger: mockLogger,
         dryRun: false,
