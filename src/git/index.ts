@@ -26,7 +26,8 @@ export type GitPreflightErrorCode =
   | 'DETACHED_HEAD'
   | 'UNCOMMITTED_CHANGES'
   | 'BRANCH_DIVERGED'
-  | 'NO_REMOTE';
+  | 'NO_REMOTE'
+  | 'INVALID_REMOTE_URL';
 
 export interface GitPreflightError {
   code: GitPreflightErrorCode;
@@ -117,6 +118,152 @@ async function runCommand(
       resolve({ stdout: "", exitCode: 1 });
     });
   });
+}
+
+/**
+ * Result of remote URL validation
+ */
+export interface RemoteValidationResult {
+  /** Whether the remote URL is valid */
+  valid: boolean;
+  /** The actual remote URL (null if remote doesn't exist) */
+  actualUrl: string | null;
+  /** Error messages if validation failed */
+  errors: string[];
+}
+
+/**
+ * Get the URL of a git remote
+ *
+ * Returns the push URL if configured, otherwise the fetch URL.
+ *
+ * @param remoteName - Name of the remote (default: "origin")
+ * @param options - Git options
+ * @returns The remote URL, or null if the remote doesn't exist
+ */
+export async function getRemoteUrl(
+  remoteName: string,
+  options: GitOptions
+): Promise<string | null> {
+  const { dryRun = false } = options;
+
+  if (dryRun) {
+    return null;
+  }
+
+  // Try to get the push URL first (what we use for pushing)
+  const pushResult = await runGitCommand(
+    ["remote", "get-url", "--push", remoteName],
+    options
+  );
+
+  if (pushResult.exitCode === 0 && pushResult.stdout) {
+    return pushResult.stdout;
+  }
+
+  // Fall back to fetch URL
+  const fetchResult = await runGitCommand(
+    ["remote", "get-url", remoteName],
+    options
+  );
+
+  if (fetchResult.exitCode === 0 && fetchResult.stdout) {
+    return fetchResult.stdout;
+  }
+
+  return null;
+}
+
+/**
+ * Normalize a URL for pattern matching
+ *
+ * Removes protocol variations and .git suffix for consistent matching.
+ * Handles HTTPS, SSH, and git:// protocols.
+ *
+ * @param url - The URL to normalize
+ * @returns Normalized URL path in format "host/org/repo"
+ */
+function normalizeUrlForMatching(url: string): string {
+  let normalized = url;
+
+  // Remove protocol prefixes
+  normalized = normalized.replace(/^https?:\/\//, "");
+  normalized = normalized.replace(/^git@([^:]+):/, "$1/");
+
+  // Remove .git suffix
+  normalized = normalized.replace(/\.git$/, "");
+
+  return normalized;
+}
+
+/**
+ * Validate remote URL against allowed patterns
+ *
+ * This is a security check to prevent pushing code to the wrong repository.
+ * For example, you might want to ensure all pushes go to your organization's repos.
+ *
+ * @param remoteName - Name of the remote to validate (default: "origin")
+ * @param allowedPatterns - Array of allowed URL patterns (e.g., ["github.com/myorg/"])
+ * @param options - Git options
+ * @returns Validation result with actual URL and any errors
+ */
+export async function validateRemoteUrl(
+  remoteName: string,
+  allowedPatterns: string[],
+  options: GitOptions
+): Promise<RemoteValidationResult> {
+  const actualUrl = await getRemoteUrl(remoteName, options);
+
+  // If no remote exists, pass validation (will fail later during push)
+  if (actualUrl === null) {
+    return { valid: true, actualUrl: null, errors: [] };
+  }
+
+  // If no patterns configured, pass validation
+  if (allowedPatterns.length === 0) {
+    return { valid: true, actualUrl, errors: [] };
+  }
+
+  const normalizedActual = normalizeUrlForMatching(actualUrl);
+  const errors: string[] = [];
+
+  // Check if actual URL matches any allowed pattern
+  let matched = false;
+  for (const pattern of allowedPatterns) {
+    const normalizedPattern = normalizeUrlForMatching(pattern);
+
+    // Check if the normalized actual URL starts with the normalized pattern
+    // This allows both exact matches and prefix matches (e.g., "org/" matches "org/repo")
+    if (normalizedActual === normalizedPattern) {
+      matched = true;
+      break;
+    }
+
+    // For prefix matching, ensure we don't double-match on slashes
+    // If pattern ends with /, check if actual starts with pattern
+    // If pattern doesn't end with /, add / before checking
+    const prefixToCheck = normalizedPattern.endsWith("/")
+      ? normalizedPattern
+      : normalizedPattern + "/";
+
+    if (normalizedActual.startsWith(prefixToCheck)) {
+      matched = true;
+      break;
+    }
+  }
+
+  if (!matched) {
+    errors.push(
+      `Remote URL '${actualUrl}' does not match any allowed pattern. ` +
+      `Expected one of: ${allowedPatterns.join(", ")}`
+    );
+  }
+
+  return {
+    valid: matched,
+    actualUrl,
+    errors,
+  };
 }
 
 export async function isGitRepo(cwd: string): Promise<boolean> {

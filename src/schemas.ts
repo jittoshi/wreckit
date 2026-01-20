@@ -20,6 +20,7 @@ export const PrChecksSchema = z.object({
   secret_scan: z.boolean().default(false),
   require_all_stories_done: z.boolean().default(true),
   allow_unsafe_direct_merge: z.boolean().default(false),
+  allowed_remote_patterns: z.array(z.string()).default([]),
 });
 
 export const ConfigSchema = z.object({

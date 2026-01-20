@@ -11,6 +11,7 @@ export interface PrChecksResolved {
   secret_scan: boolean;
   require_all_stories_done: boolean;
   allow_unsafe_direct_merge: boolean;
+  allowed_remote_patterns: string[];
 }
 
 export interface ConfigResolved {
@@ -57,6 +58,7 @@ export const DEFAULT_CONFIG: ConfigResolved = {
     secret_scan: false,
     require_all_stories_done: true,
     allow_unsafe_direct_merge: false,
+    allowed_remote_patterns: [],
   },
 };
 
@@ -78,6 +80,7 @@ export function mergeWithDefaults(partial: Partial<Config>): ConfigResolved {
         secret_scan: partial.pr_checks.secret_scan ?? DEFAULT_CONFIG.pr_checks.secret_scan,
         require_all_stories_done: partial.pr_checks.require_all_stories_done ?? DEFAULT_CONFIG.pr_checks.require_all_stories_done,
         allow_unsafe_direct_merge: partial.pr_checks.allow_unsafe_direct_merge ?? DEFAULT_CONFIG.pr_checks.allow_unsafe_direct_merge,
+        allowed_remote_patterns: partial.pr_checks.allowed_remote_patterns ?? DEFAULT_CONFIG.pr_checks.allowed_remote_patterns,
       }
     : { ...DEFAULT_CONFIG.pr_checks };
 

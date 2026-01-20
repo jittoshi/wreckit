@@ -48,11 +48,13 @@ import {
   formatViolations,
   runPrePushQualityGates,
   checkPrMergeability,
+  validateRemoteUrl,
   type PrMergeabilityResult,
   type GitPreflightError,
   type GitFileChange,
   type StatusCompareOptions,
   type QualityCheckResult,
+  type RemoteValidationResult,
 } from "../git";
 
 export interface WorkflowOptions {
@@ -834,6 +836,38 @@ export async function runPhasePr(
       for (const skipped of qualityResult.skipped) {
         logger.info(`Skipped: ${skipped}`);
       }
+    }
+  }
+
+  // Validate remote URL (Gap 6: Remote Validation)
+  // This prevents pushing code to the wrong repository
+  if (!dryRun) {
+    const remoteValidation: RemoteValidationResult = await validateRemoteUrl(
+      "origin",
+      config.pr_checks.allowed_remote_patterns,
+      gitOptions
+    );
+
+    if (!remoteValidation.valid) {
+      const errorLines = [
+        "Remote URL validation failed.",
+        "This check prevents pushing code to an unintended repository.",
+        "",
+        ...remoteValidation.errors.map((e) => `  • ${e}`),
+        "",
+        "To fix this:",
+        "  1. Verify the correct remote is configured: git remote -v",
+        "  2. Update the remote if needed: git remote set-url origin <correct-url>",
+        "  3. Or add the remote pattern to pr_checks.allowed_remote_patterns in config",
+      ];
+      const error = errorLines.join("\n");
+      item = { ...item, last_error: error };
+      await saveItem(root, item);
+      return { success: false, item, error };
+    }
+
+    if (remoteValidation.actualUrl) {
+      logger.info(`Remote URL validated: ${remoteValidation.actualUrl}`);
     }
   }
 
