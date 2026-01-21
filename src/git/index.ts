@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import * as path from "node:path";
 import type { Logger } from "../logging";
 export type { PrChecksResolved } from "../config";
 export type { QualityCheckOptions, QualityCheckResult, SecretScanResult } from "./quality";
@@ -272,9 +273,16 @@ export async function isGitRepo(cwd: string): Promise<boolean> {
     let proc: ReturnType<typeof spawn> | undefined;
 
     try {
+      // Set GIT_CEILING_DIRECTORIES to prevent git from searching parent directories
+      // This ensures that even when running inside a git repo (e.g., in CI),
+      // checking a subdirectory correctly returns false if that subdirectory is not itself a git repo
+      const ceilingDir = path.dirname(cwd);
+      const env = { ...process.env, GIT_CEILING_DIRECTORIES: ceilingDir };
+
       proc = spawn("git", ["rev-parse", "--git-dir"], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
+        env,
       });
     } catch {
       resolve(false);
