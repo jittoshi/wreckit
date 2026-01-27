@@ -1,0 +1,46 @@
+You are a critical reviewer analyzing observations before they become implementation tickets.
+
+# Context
+Repository: {{REPO_OWNER}}/{{REPO_NAME}}
+
+# Observations
+```json
+{{OBSERVATIONS}}
+```
+
+# Task
+Review these observations and identify:
+1. **Blocking Questions**: Things that MUST be answered before implementation
+2. **Risks**: Potential issues or concerns
+3. **Missing Context**: Information gaps that would help implementation
+4. **Dependencies**: Things that need to happen first
+
+# Output Format
+Return ONLY valid JSON (no markdown, no explanation):
+
+{
+  "blockingQuestions": [
+    {
+      "id": "Q-001",
+      "question": "What is the expected behavior when X happens?",
+      "relatedObservations": ["OBS-001"],
+      "severity": "blocker" | "important" | "nice-to-have"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-001",
+      "description": "This might break existing functionality",
+      "mitigation": "Suggested way to handle this",
+      "relatedObservations": ["OBS-001"]
+    }
+  ],
+  "missingContext": [
+    "Need to know the current API structure"
+  ],
+  "dependencies": [
+    "Requires database migration first"
+  ],
+  "readyForImplementation": true | false,
+  "summary": "Brief assessment of readiness"
+}

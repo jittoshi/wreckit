@@ -4,6 +4,7 @@ import type { MobileConfig, SessionMeta, RepoRef } from "../shared/contracts.js"
 import { MobileConfigSchema } from "../shared/contracts.js";
 import { SessionStore } from "./session-store.js";
 import { TelegramAdapter } from "./telegram.js";
+import { Synthesizer } from "./synthesizer.js";
 import { createLogger } from "../../src/logging.js";
 
 const log = createLogger({ verbose: true });
@@ -88,12 +89,53 @@ export class Orchestrator {
       return;
     }
 
+    if (!session.repo) {
+      await this.telegram.sendMessage(
+        chatId,
+        "❌ No repo set. Send `owner/repo` first to target a repository."
+      );
+      return;
+    }
+
     this.sessionStore.updateSessionMode(sessionId, "synthesize");
 
-    await this.telegram.sendMessage(
-      chatId,
-      "⚠️ Synthesize pipeline not yet implemented (Milestone 2).\n\nNotes captured, ready for synthesis."
-    );
+    try {
+      const synthesizer = new Synthesizer(this.config, this.sessionStore);
+      const result = await synthesizer.synthesize(sessionId);
+
+      const ticketList = result.tickets.tickets
+        .map((t) => `• *${t.id}*: ${t.title} (${t.priority})`)
+        .join("\n");
+
+      const blockerCount = result.critic.blockingQuestions.filter(
+        (q) => q.severity === "blocker"
+      ).length;
+
+      let message = `✅ *Synthesis Complete*\n\n`;
+      message += `📋 *${result.tickets.tickets.length} Tickets:*\n${ticketList}\n\n`;
+
+      if (blockerCount > 0) {
+        message += `⚠️ *${blockerCount} Blocking Questions:*\n`;
+        for (const q of result.critic.blockingQuestions.filter(
+          (q) => q.severity === "blocker"
+        )) {
+          message += `• ${q.question}\n`;
+        }
+        message += "\n";
+      }
+
+      message += `${result.spec.mobileNote}\n\n`;
+      message += `Say \`go\` or \`execute\` to start implementation.`;
+
+      await this.telegram.sendMessage(chatId, message);
+    } catch (error) {
+      log.error(`Synthesis failed: ${error}`);
+      await this.telegram.sendMessage(
+        chatId,
+        `❌ Synthesis failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      this.sessionStore.updateSessionMode(sessionId, "capture");
+    }
   }
 
   private async handleExecute(sessionId: string, chatId: string): Promise<void> {

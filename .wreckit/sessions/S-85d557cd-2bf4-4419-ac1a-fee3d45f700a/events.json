@@ -1,0 +1,54 @@
+[
+  {
+    "id": "E-98681455-1b81-477a-a90b-229e12a3f86b",
+    "ref": {
+      "platform": "telegram",
+      "chatId": "1630993666",
+      "messageId": "3",
+      "userId": "1630993666",
+      "timestamp": "2026-01-27T20:52:32.296Z"
+    },
+    "kind": "text",
+    "text": "can you get me this info within our repo: t\n\nhe Helius calls we're making today (code snippets or endpoints)\n\nwhat fields you currently get for a token (sample JSON)",
+    "intent": "CAPTURE_NOTE"
+  },
+  {
+    "id": "E-1c3d881d-286d-4f27-93b0-ffc775e800e8",
+    "ref": {
+      "platform": "telegram",
+      "chatId": "1630993666",
+      "messageId": "5",
+      "userId": "1630993666",
+      "timestamp": "2026-01-27T20:54:37.605Z"
+    },
+    "kind": "text",
+    "text": "status",
+    "intent": "STATUS"
+  },
+  {
+    "id": "E-f46b6724-378a-4651-829c-c827b9bd8e55",
+    "ref": {
+      "platform": "telegram",
+      "chatId": "1630993666",
+      "messageId": "7",
+      "userId": "1630993666",
+      "timestamp": "2026-01-27T20:55:00.964Z"
+    },
+    "kind": "text",
+    "text": "help",
+    "intent": "HELP"
+  },
+  {
+    "id": "E-1373e69e-5bb8-4c60-bf9d-9189e27ae58d",
+    "ref": {
+      "platform": "telegram",
+      "chatId": "1630993666",
+      "messageId": "9",
+      "userId": "1630993666",
+      "timestamp": "2026-01-27T20:55:35.391Z"
+    },
+    "kind": "text",
+    "text": "noahchristian/polymarket-aggregator",
+    "intent": "SWITCH_REPO"
+  }
+]
